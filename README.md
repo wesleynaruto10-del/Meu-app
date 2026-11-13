@@ -10,6 +10,7 @@ Aplicativo web (PWA) para usar no celular na hora das compras no mercado.
 - Avisa se o preço digitado está mais caro ou mais barato que da última vez.
 - Orçamento da compra, com barra que mostra quanto ainda resta.
 - Lista de compras: monte em casa e, no mercado, toque no item para informar só o preço.
+- Lista por voz: toque em **Falar os itens** e dite ("dois leites, arroz e pão"); diga "pronto" para terminar.
 - Botões + e − para ajustar a quantidade direto no item.
 - Mantém o histórico de todas as compras finalizadas.
 - Resumo com o total gasto por mês, média por compra e produtos em que mais gastou.
