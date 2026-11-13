@@ -371,10 +371,12 @@ function interpretarFala(texto) {
 
 /* Separa o preço do fim da frase: "arroz 24 e 90", "leite R$ 4,59", "pão cinco reais e cinquenta" */
 function extrairPreco(texto) {
-  const toks = texto.toLowerCase().replace(/r\$\s*/g, ' r$ ').replace(/[!?]/g, ' ').replace(/\.(?!\d)/g, ' ')
+  const toks = texto.toLowerCase()
+    .replace(/(\d)\s*[:/h-]\s*(\d{2})(?!\d)/g, '$1,$2')   // o celular às vezes escreve "5:99" ou "24/90"
+    .replace(/r\$\s*/g, ' r$ ').replace(/[!?]/g, ' ').replace(/\.(?!\d)/g, ' ')
     .replace(/,(?!\d)/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   const ehNumero = (w) => /^\d+(?:[.,]\d+)?$/.test(w) || norm(w) in NUM_EXT;
-  const ehPreco = (w) => ehNumero(w) || ['e', 'r$', 'reais', 'real', 'centavos', 'centavo', 'por', 'a', 'custa', 'custou'].includes(norm(w));
+  const ehPreco = (w) => ehNumero(w) || ['e', 'r$', 'reais', 'real', 'centavos', 'centavo', 'por', 'a', 'custa', 'custou', 'com'].includes(norm(w));
   let ini = toks.length;
   while (ini > 0 && ehPreco(toks[ini - 1])) ini--;
   while (ini < toks.length && !ehNumero(toks[ini]) && toks[ini] !== 'r$') ini++; // devolve "e", "a", "por" soltos ao nome
@@ -385,11 +387,15 @@ function extrairPreco(texto) {
   // palavras → números, juntando "vinte e quatro" em 24
   const nums = [];
   let centavos = false;
+  const temReais = sufixo.some((w) => ['reais', 'real', 'r$'].includes(norm(w)));
   for (let i = 0; i < sufixo.length; i++) {
     const w = norm(sufixo[i]);
     if (w === 'centavos' || w === 'centavo') { centavos = true; continue; }
     if (!ehNumero(sufixo[i])) continue;
-    if (!(w in NUM_EXT)) { nums.push({ v: parseFloat(sufixo[i].replace(',', '.')), dec: /[.,]/.test(sufixo[i]) }); continue; }
+    if (!(w in NUM_EXT)) {
+      nums.push({ v: parseFloat(sufixo[i].replace(',', '.')), dec: /[.,]/.test(sufixo[i]), digitos: /^\d{3,4}$/.test(sufixo[i]) });
+      continue;
+    }
     let v = NUM_EXT[w];
     let ultimo = v;
     while (norm(sufixo[i + 1] || '') === 'e' && norm(sufixo[i + 2] || '') in NUM_EXT) {
@@ -401,36 +407,62 @@ function extrairPreco(texto) {
     nums.push({ v, dec: false });
   }
   let preco = null;
-  if (nums.length === 1) preco = centavos && !nums[0].dec ? nums[0].v / 100 : nums[0].v;
-  else if (nums.length === 2 && !nums[0].dec && !nums[1].dec && nums[1].v < 100) preco = nums[0].v + nums[1].v / 100;
+  if (nums.length === 1) {
+    if (centavos && !nums[0].dec) preco = nums[0].v / 100;
+    else if (nums[0].digitos && !temReais) preco = nums[0].v / 100; // "599" dito como "cinco noventa e nove"
+    else preco = nums[0].v;
+  } else if (nums.length === 2 && !nums[0].dec && !nums[1].dec && nums[1].v < 100) {
+    preco = nums[0].v + nums[1].v / 100;
+  }
   if (preco === null || !(preco >= 0)) return semPreco;
-  const resto = toks.slice(0, ini).join(' ').replace(/\s+(?:a|por|custa|custou|de)$/, '');
+  const resto = toks.slice(0, ini).join(' ').replace(/\s+(?:a|por|custa|custou|de|com)$/, '');
   return { preco: Math.round(preco * 100) / 100, resto };
+}
+
+/* Quando o app está esperando só o preço: ignora palavras soltas ("é", "custa", "deu") e lê o valor */
+function extrairSoPreco(texto) {
+  const r = extrairPreco(texto);
+  if (r.preco === null) return null;
+  const sobra = norm(r.resto).split(' ')
+    .filter((w) => w && !['e', 'sao', 'custa', 'custou', 'deu', 'foi', 'o', 'preco', 'valor', 'ta', 'esta', 'por', 'a', 'de', 'da', 'do', 'sai', 'saiu', 'fica', 'ficou'].includes(w));
+  // sobrou um nome de verdade → é outro produto com preço, não só o preço
+  return sobra.some((w) => w.length >= 3 && !/^\d/.test(w)) ? null : r.preco;
 }
 
 const Reconhecedor = window.SpeechRecognition || window.webkitSpeechRecognition;
 const VOZ = {
   lista: {
     btn: 'btn-voz', txt: 'btn-voz-txt', status: 'voz-status', rotulo: 'Falar os itens',
-    dica: 'Pode falar: “dois leites, arroz e pão”. Diga “pronto” para terminar.',
+    dica: 'Fale os itens: “dois leites, arroz e pão”. Diga “pronto” para terminar.',
+    convite: () => 'Pode falar',
   },
   compra: {
     btn: 'btn-voz-compra', txt: 'btn-voz-compra-txt', status: 'voz-compra-status', rotulo: 'Falar produto e preço',
-    dica: 'Fale o produto e o preço: “arroz 24 e 90”. Diga “pronto” para terminar.',
+    dica: 'Fale o produto e depois o preço. Diga “pronto” para terminar.',
+    convite: () => (vozEsperaPreco ? `Agora diga o preço de ${$('f-nome').value.trim()}` : 'Diga o produto'),
   },
 };
 let voz = null;        // reconhecimento em andamento
 let vozAtiva = false;  // o usuário quer continuar ditando
+let vozPronta = false; // o microfone já está de fato ouvindo
 let vozModo = 'lista';
 let vozSilencios = 0;
+let vozMsg = '';       // último retorno ("Adicionado: …")
+let vozParcial = '';   // o que está sendo ouvido agora
 let vozUltimos = [];   // lista: itens adicionados pela última frase (para "desfazer")
-let vozUltimoItem = null; // compra: id do último item adicionado por voz
+let vozUltimoItem = null;   // compra: id do último item adicionado por voz
+let vozEsperaPreco = false; // compra: produto já entendido, falta o preço
 
-function vozStatus(msg) {
+function vozRender() {
   const el = $(VOZ[vozModo].status);
-  el.hidden = !msg;
-  el.textContent = msg || '';
+  const linhas = [];
+  if (vozMsg) linhas.push(vozMsg);
+  if (vozAtiva) linhas.push(vozParcial ? `“${vozParcial}”` : vozPronta ? `🎤 ${VOZ[vozModo].convite()}` : 'Aguarde…');
+  el.hidden = !linhas.length;
+  el.textContent = linhas.join('\n');
+  el.classList.toggle('pronta', vozAtiva && vozPronta);
 }
+function vozStatus(msg) { vozMsg = msg || ''; vozRender(); }
 function vozBotao() {
   for (const [modo, c] of Object.entries(VOZ)) {
     const ligado = vozAtiva && vozModo === modo;
@@ -440,7 +472,7 @@ function vozBotao() {
   }
 }
 
-function vozFraseLista(texto, desfazer) {
+function vozFraseLista(textos, desfazer) {
   if (desfazer) {
     if (!vozUltimos.length) { vozStatus('Nada para desfazer.'); return; }
     vozUltimos.forEach(({ item, somou }) => {
@@ -449,47 +481,22 @@ function vozFraseLista(texto, desfazer) {
     });
     vozUltimos = [];
     salvar(); renderLista(); renderFalta();
-    vozStatus('Desfeito. Pode continuar falando.');
+    vozStatus('Desfeito.');
     return;
   }
-  const itens = interpretarFala(texto);
+  const itens = interpretarFala(textos[0]);
   if (!itens.length) return;
   vozUltimos = itens.map((i) => adicionarNaLista(i.nome, i.qtd));
   salvar(); renderLista(); renderFalta();
   vozStatus('Adicionado: ' + itens.map((i) => (i.qtd !== 1 ? fmtQtd(i.qtd) + ' ' : '') + i.nome).join(', '));
 }
 
-function vozFraseCompra(texto, desfazer) {
-  if (desfazer) {
-    const it = db.atual.find((i) => i.id === vozUltimoItem);
-    if (!it) { vozStatus('Nada para desfazer.'); return; }
-    db.atual = db.atual.filter((i) => i.id !== it.id);
-    const daLista = db.lista.find((l) => l.id === it.listaId);
-    if (daLista) daLista.feito = false;
-    vozUltimoItem = null;
-    salvar(); renderAtual();
-    vozStatus(`Removido: ${it.nome}. Pode continuar falando.`);
-    return;
-  }
-  const { preco, resto } = extrairPreco(texto);
-  const item = resto ? interpretarItem(resto) : null;
-  if (item) {
-    limparForm();
-    // reaproveita a grafia de um produto já comprado
-    const conhecido = [...$('lista-nomes').options].find((o) => norm(o.value) === norm(item.nome));
-    $('f-nome').value = conhecido ? conhecido.value : item.nome;
-    $('f-qtd').value = fmtQtd(item.qtd).replace(/\./g, '');
-  }
+function vozAdicionarCompra(preco) {
   const nome = $('f-nome').value.trim();
-  if (!nome) { vozStatus('Não entendi o produto. Fale o produto e o preço.'); return; }
-  if (preco === null) {
-    renderUltimos();
-    vozStatus(`Qual o preço de ${nome}? Diga só o valor.`);
-    return;
-  }
-  $('f-preco').value = fmtNum(preco);
   const qtd = $('f-qtd').value;
+  $('f-preco').value = fmtNum(preco);
   const antes = db.atual.length;
+  vozEsperaPreco = false;
   $('form-item').requestSubmit();
   if (db.atual.length > antes) {
     vozUltimoItem = db.atual[db.atual.length - 1].id;
@@ -499,11 +506,69 @@ function vozFraseCompra(texto, desfazer) {
   }
 }
 
-function vozFrase(texto) {
-  const limpo = norm(texto.replace(/[.!?,]/g, ' '));
+function vozFraseCompra(textos, desfazer, cancelar) {
+  if (cancelar) {
+    limparForm();
+    vozEsperaPreco = false;
+    vozStatus('Cancelado.');
+    return;
+  }
+  if (desfazer) {
+    if (vozEsperaPreco) { limparForm(); vozEsperaPreco = false; vozStatus('Cancelado.'); return; }
+    const it = db.atual.find((i) => i.id === vozUltimoItem);
+    if (!it) { vozStatus('Nada para desfazer.'); return; }
+    db.atual = db.atual.filter((i) => i.id !== it.id);
+    const daLista = db.lista.find((l) => l.id === it.listaId);
+    if (daLista) daLista.feito = false;
+    vozUltimoItem = null;
+    salvar(); renderAtual();
+    vozStatus(`Removido: ${it.nome}.`);
+    return;
+  }
+
+  // 1) esperando só o preço: qualquer alternativa que traga um valor serve
+  if (vozEsperaPreco && $('f-nome').value.trim()) {
+    for (const t of textos) {
+      const p = extrairSoPreco(t);
+      if (p !== null) { vozAdicionarCompra(p); return; }
+    }
+  }
+
+  // 2) produto (com ou sem preço): prefere a alternativa que traz os dois
+  const lidas = textos.map((t) => {
+    const { preco, resto } = extrairPreco(t);
+    return { preco, item: resto ? interpretarItem(resto) : null };
+  }).filter((l) => l.item);
+  const lida = lidas.find((l) => l.preco !== null) || lidas[0];
+  if (!lida) {
+    vozStatus(vozEsperaPreco
+      ? `Não entendi o preço (ouvi “${textos[0]}”). Diga, por exemplo, “cinco e noventa e nove”.`
+      : `Não entendi (ouvi “${textos[0]}”).`);
+    return;
+  }
+  // esperando o preço e veio só texto sem número: não troca o produto por engano
+  if (vozEsperaPreco && lida.preco === null && !/\d/.test(textos[0])) {
+    vozStatus(`Não entendi o preço (ouvi “${textos[0]}”). Diga só o valor, ou “cancelar” para trocar de produto.`);
+    return;
+  }
+  limparForm();
+  // reaproveita a grafia de um produto já comprado
+  const conhecido = [...$('lista-nomes').options].find((o) => norm(o.value) === norm(lida.item.nome));
+  $('f-nome').value = conhecido ? conhecido.value : lida.item.nome;
+  $('f-qtd').value = fmtQtd(lida.item.qtd).replace(/\./g, '');
+  if (lida.preco !== null) { vozAdicionarCompra(lida.preco); return; }
+  vozEsperaPreco = true;
+  renderUltimos();
+  vozStatus(`Produto: ${$('f-nome').value}`);
+}
+
+function vozFrase(textos) {
+  const limpo = norm(textos[0].replace(/[.!?,]/g, ' '));
   if (/^(parar?|pare|pronto|terminar|terminei|acabou|acabei|so isso|e so|chega|fim)$/.test(limpo)) { pararVoz(); return; }
   const desfazer = /^(desfazer|desfaz|apagar? (o )?ultimo|remover? (o )?ultimo|tira(r)? (o )?ultimo|errei)$/.test(limpo);
-  (vozModo === 'compra' ? vozFraseCompra : vozFraseLista)(texto, desfazer);
+  const cancelar = /^(cancelar?|cancela|outro produto|trocar( de)? produto)$/.test(limpo);
+  if (vozModo === 'compra') vozFraseCompra(textos, desfazer, cancelar);
+  else vozFraseLista(textos, desfazer);
 }
 
 function vozEscutar() {
@@ -511,14 +576,15 @@ function vozEscutar() {
   voz.lang = 'pt-BR';
   voz.continuous = false;      // uma frase por vez; reinicia sozinho (mais estável no Android)
   voz.interimResults = true;
-  voz.maxAlternatives = 1;
+  voz.maxAlternatives = 3;
   let ouviu = false;
+  voz.onstart = () => { vozPronta = true; vozRender(); };
   voz.onresult = (e) => {
     const r = e.results[e.results.length - 1];
-    const texto = r[0].transcript.trim();
-    if (!texto) return;
+    const textos = [...r].map((a) => a.transcript.trim()).filter(Boolean);
+    if (!textos.length) return;
     ouviu = true;
-    if (r.isFinal) vozFrase(texto); else vozStatus('“' + texto + '”');
+    if (r.isFinal) { vozParcial = ''; vozFrase(textos); } else { vozParcial = textos[0]; vozRender(); }
   };
   voz.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -531,10 +597,13 @@ function vozEscutar() {
   };
   voz.onend = () => {
     voz = null;
+    vozPronta = false;
+    vozParcial = '';
     vozSilencios = ouviu ? 0 : vozSilencios + 1;
-    if (vozAtiva && vozSilencios >= 4) { vozAtiva = false; vozStatus('Parei de ouvir por falta de fala.'); }
+    if (vozAtiva && vozSilencios >= 4) { vozAtiva = false; vozMsg = 'Parei de ouvir por falta de fala.'; }
     if (vozAtiva) { try { vozEscutar(); } catch { vozAtiva = false; } }
     vozBotao();
+    vozRender();
   };
   voz.start();
 }
@@ -543,16 +612,21 @@ function iniciarVoz(modo) {
   if (!Reconhecedor) { toast('Este navegador não tem reconhecimento de voz. Use o Chrome.'); return; }
   vozModo = modo;
   vozAtiva = true;
+  vozPronta = false;
+  vozParcial = '';
   vozSilencios = 0;
   vozUltimos = [];
   vozUltimoItem = null;
+  vozEsperaPreco = false;
   vozStatus(VOZ[modo].dica);
   vozBotao();
-  try { vozEscutar(); } catch { vozAtiva = false; vozBotao(); toast('Não foi possível iniciar o microfone.'); }
+  try { vozEscutar(); } catch { vozAtiva = false; vozBotao(); vozRender(); toast('Não foi possível iniciar o microfone.'); }
 }
 function pararVoz() {
   if (!vozAtiva && !voz) return;
   vozAtiva = false;
+  vozEsperaPreco = false;
+  vozParcial = '';
   if (voz) { try { voz.stop(); } catch { /* já parado */ } }
   vozBotao();
   vozStatus('');
