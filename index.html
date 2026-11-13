@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -30,6 +30,7 @@
 <main>
   <!-- COMPRA ATUAL -->
   <section id="tab-compra" class="tab active">
+    <div class="col-fixa">
     <form id="form-item" class="card" autocomplete="off">
       <div class="row">
         <label class="grow">Produto
@@ -68,8 +69,11 @@
       <div class="orc-barra" id="orc-barra" hidden><i id="orc-fill"></i></div>
     </div>
 
+    </div>
+    <div class="col-lista">
     <ul id="lista-itens" class="lista"></ul>
-    <p id="vazio" class="muted center">Nenhum produto ainda. Adicione o primeiro acima.</p>
+    <p id="vazio" class="muted center">Nenhum produto ainda. Adicione o primeiro pelo formulário.</p>
+    </div>
 
     <div class="total-bar">
       <div>
@@ -94,9 +98,11 @@
       </div>
       <button type="submit" class="btn primary">Adicionar à lista</button>
     </form>
+    <div class="col-lista">
     <ul id="lista-planejada" class="lista"></ul>
     <p id="lista-vazia" class="muted center">Lista vazia. Monte em casa e, no mercado, os itens aparecem na aba Compra.</p>
     <button type="button" class="btn largo" id="btn-limpar-lista" hidden>Limpar lista</button>
+    </div>
   </section>
 
   <!-- HISTÓRICO -->
@@ -193,6 +199,6 @@
 </dialog>
 
 <div id="toast" role="status"></div>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
