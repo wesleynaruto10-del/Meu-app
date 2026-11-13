@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>Minhas Compras</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>🛒 Minhas Compras</h1>
+</header>
+
+<main>
+  <!-- COMPRA ATUAL -->
+  <section id="tab-compra" class="tab active">
+    <form id="form-item" class="card" autocomplete="off">
+      <div class="row">
+        <label class="grow">Produto
+          <input id="f-nome" list="lista-nomes" placeholder="Ex.: Arroz 5kg" required>
+        </label>
+        <button type="button" id="btn-scan" class="btn icon" title="Ler código de barras" aria-label="Ler código de barras">📷</button>
+      </div>
+      <datalist id="lista-nomes"></datalist>
+      <div id="ultimos" class="ultimos" hidden></div>
+      <div class="row">
+        <label>Quantidade
+          <input id="f-qtd" inputmode="decimal" value="1" required>
+        </label>
+        <label class="grow">Valor unitário (R$)
+          <input id="f-preco" inputmode="decimal" placeholder="0,00" required>
+        </label>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn primary grow" id="btn-add">Adicionar</button>
+        <button type="button" class="btn" id="btn-cancel-edit" hidden>Cancelar</button>
+      </div>
+    </form>
+
+    <ul id="lista-itens" class="lista"></ul>
+    <p id="vazio" class="muted center">Nenhum produto ainda. Adicione o primeiro acima.</p>
+
+    <div class="total-bar">
+      <div>
+        <small id="total-qtd">0 itens</small>
+        <strong id="total-valor">R$ 0,00</strong>
+      </div>
+      <button class="btn primary" id="btn-finalizar" disabled>Finalizar compra</button>
+    </div>
+  </section>
+
+  <!-- HISTÓRICO -->
+  <section id="tab-historico" class="tab">
+    <ul id="lista-compras" class="lista"></ul>
+    <p id="hist-vazio" class="muted center">Nenhuma compra registrada ainda.</p>
+    <div class="card backup">
+      <strong>Backup</strong>
+      <p class="muted">Os dados ficam salvos só neste aparelho. Exporte de vez em quando para não perder.</p>
+      <div class="row">
+        <button class="btn grow" id="btn-export">Exportar</button>
+        <button class="btn grow" id="btn-import">Importar</button>
+        <input type="file" id="file-import" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESUMO -->
+  <section id="tab-resumo" class="tab">
+    <div class="card">
+      <label>Mês
+        <select id="sel-mes"></select>
+      </label>
+      <div class="resumo-total">
+        <small>Total gasto no mês</small>
+        <strong id="res-total">R$ 0,00</strong>
+      </div>
+      <div class="stats">
+        <div><small>Compras</small><b id="res-compras">0</b></div>
+        <div><small>Média por compra</small><b id="res-media">R$ 0,00</b></div>
+        <div><small>Itens</small><b id="res-itens">0</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <strong>Últimos meses</strong>
+      <div id="res-meses" class="barras"></div>
+    </div>
+    <div class="card">
+      <strong>Onde mais gastei no mês</strong>
+      <ol id="res-top" class="top"></ol>
+    </div>
+  </section>
+</main>
+
+<nav>
+  <button data-tab="compra" class="active"><span>🛒</span>Compra</button>
+  <button data-tab="historico"><span>📋</span>Histórico</button>
+  <button data-tab="resumo"><span>📊</span>Resumo</button>
+</nav>
+
+<!-- Leitor de código de barras -->
+<dialog id="dlg-scan">
+  <div class="scan-box">
+    <video id="video" playsinline muted></video>
+    <div class="mira"></div>
+  </div>
+  <p id="scan-msg" class="center">Aponte a câmera para o código de barras</p>
+  <button class="btn grow" id="btn-scan-fechar">Cancelar</button>
+</dialog>
+
+<!-- Finalizar compra -->
+<dialog id="dlg-fim">
+  <form method="dialog" id="form-fim">
+    <h2>Finalizar compra</h2>
+    <p>Total: <strong id="fim-total"></strong></p>
+    <label>Mercado (opcional)
+      <input id="fim-loja" list="lista-lojas" placeholder="Ex.: Atacadão">
+    </label>
+    <datalist id="lista-lojas"></datalist>
+    <label>Data
+      <input id="fim-data" type="date" required>
+    </label>
+    <div class="row">
+      <button type="button" class="btn grow" id="fim-cancelar">Voltar</button>
+      <button type="submit" class="btn primary grow">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,1 +1,32 @@
-# Meu-app
+# Minhas Compras
+
+Aplicativo web (PWA) para usar no celular na hora das compras no mercado.
+
+- Registra produto, quantidade e valor, e mostra o total da compra em tempo real.
+- Lê o código de barras pela câmera e preenche o nome do produto automaticamente
+  (base aberta [Open Food Facts](https://world.openfoodfacts.org)). Se o produto não
+  estiver na base, você digita o nome uma vez e o app lembra nas próximas leituras.
+- Ao informar o produto, mostra quanto você pagou nas últimas 3 compras.
+- Mantém o histórico de todas as compras finalizadas.
+- Resumo com o total gasto por mês, média por compra e produtos em que mais gastou.
+- Exporta/importa backup em arquivo `.json`.
+
+Os dados ficam salvos apenas no próprio aparelho (`localStorage`); não há servidor nem conta.
+
+## Como usar no celular
+
+A câmera só funciona em páginas `https`. A forma mais simples é publicar com o GitHub Pages:
+
+1. No GitHub, abra **Settings → Pages**.
+2. Em **Source**, escolha **Deploy from a branch**, selecione a branch com estes arquivos e a pasta `/ (root)`.
+3. Abra no celular o endereço informado (`https://<usuario>.github.io/<repositorio>/`).
+4. No menu do navegador, toque em **Adicionar à tela inicial** para instalar como aplicativo.
+
+## Rodar no computador
+
+```sh
+python3 -m http.server 8000
+# abra http://localhost:8000
+```
+
+Não há etapa de build: são apenas arquivos estáticos (`index.html`, `style.css`, `app.js`).

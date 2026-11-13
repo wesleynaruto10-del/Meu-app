@@ -1,0 +1,13 @@
+{
+  "name": "Minhas Compras",
+  "short_name": "Compras",
+  "description": "Registro de compras do mercado com total, histórico e resumo mensal.",
+  "lang": "pt-BR",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f4f6f5",
+  "theme_color": "#0f766e",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
