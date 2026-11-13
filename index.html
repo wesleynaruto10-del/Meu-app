@@ -35,11 +35,26 @@
           <input id="f-preco" inputmode="numeric" placeholder="0,00" required>
         </label>
       </div>
+      <div id="compara" class="compara" role="status" hidden></div>
       <div class="row">
         <button type="submit" class="btn primary grow" id="btn-add">Adicionar</button>
         <button type="button" class="btn" id="btn-cancel-edit" hidden>Cancelar</button>
       </div>
     </form>
+
+    <div id="falta" class="card" hidden>
+      <strong id="falta-tit"></strong>
+      <p class="muted">Toque no produto para informar o preço.</p>
+      <div id="falta-chips" class="chips"></div>
+    </div>
+
+    <div class="card orc">
+      <div class="row centro">
+        <div id="orc-txt" class="grow"></div>
+        <button type="button" class="btn" id="btn-orc">Definir</button>
+      </div>
+      <div class="orc-barra" id="orc-barra" hidden><i id="orc-fill"></i></div>
+    </div>
 
     <ul id="lista-itens" class="lista"></ul>
     <p id="vazio" class="muted center">Nenhum produto ainda. Adicione o primeiro acima.</p>
@@ -51,6 +66,25 @@
       </div>
       <button class="btn primary" id="btn-finalizar" disabled>Finalizar compra</button>
     </div>
+  </section>
+
+  <!-- LISTA DE COMPRAS -->
+  <section id="tab-lista" class="tab">
+    <form id="form-lista" class="card" autocomplete="off">
+      <strong>O que preciso comprar</strong>
+      <div class="row">
+        <label class="grow">Produto
+          <input id="l-nome" list="lista-nomes" placeholder="Ex.: Leite" required>
+        </label>
+        <label>Qtd.
+          <input id="l-qtd" inputmode="decimal" value="1" required>
+        </label>
+      </div>
+      <button type="submit" class="btn primary">Adicionar à lista</button>
+    </form>
+    <ul id="lista-planejada" class="lista"></ul>
+    <p id="lista-vazia" class="muted center">Lista vazia. Monte em casa e, no mercado, os itens aparecem na aba Compra.</p>
+    <button type="button" class="btn largo" id="btn-limpar-lista" hidden>Limpar lista</button>
   </section>
 
   <!-- HISTÓRICO -->
@@ -97,6 +131,7 @@
 
 <nav>
   <button data-tab="compra" class="active"><span>🛒</span>Compra</button>
+  <button data-tab="lista"><span>📝</span>Lista</button>
   <button data-tab="historico"><span>📋</span>Histórico</button>
   <button data-tab="resumo"><span>📊</span>Resumo</button>
 </nav>
@@ -127,6 +162,21 @@
       <button type="button" class="btn grow" id="fim-cancelar">Voltar</button>
       <button type="submit" class="btn primary grow">Salvar</button>
     </div>
+  </form>
+</dialog>
+
+<!-- Orçamento -->
+<dialog id="dlg-orc">
+  <form method="dialog" id="form-orc">
+    <h2>Orçamento da compra</h2>
+    <label>Quanto pretendo gastar (R$)
+      <input id="orc-valor" inputmode="numeric" placeholder="0,00">
+    </label>
+    <div class="row">
+      <button type="button" class="btn grow" id="orc-cancelar">Voltar</button>
+      <button type="submit" class="btn primary grow">Salvar</button>
+    </div>
+    <button type="button" class="link-del" id="orc-remover">Remover orçamento</button>
   </form>
 </dialog>
 

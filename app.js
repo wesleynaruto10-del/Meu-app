@@ -2,7 +2,7 @@
 
 /* ---------- Dados ---------- */
 const KEY = 'minhas-compras-v1';
-const vazio = () => ({ atual: [], compras: [], codigos: {} });
+const vazio = () => ({ atual: [], compras: [], codigos: {}, lista: [], orcamento: null });
 let db = carregar();
 
 function carregar() {
@@ -28,6 +28,8 @@ const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.ge
 const fmtData = (iso) => { const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; };
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtMes = (k) => { const [a, m] = k.split('-'); return `${MESES[+m - 1]}/${a}`; };
+const fmtNum = (n) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const arred = (n) => Math.round(n * 1000) / 1000;
 const totalItens = (itens) => itens.reduce((s, i) => s + i.qtd * i.preco, 0);
 
 let toastTimer;
@@ -43,6 +45,7 @@ function toast(msg) {
 document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
+  if (b.dataset.tab === 'lista') renderLista();
   if (b.dataset.tab === 'historico') renderHistorico();
   if (b.dataset.tab === 'resumo') renderResumo();
   window.scrollTo(0, 0);
@@ -51,24 +54,35 @@ document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click
 /* ---------- Compra atual ---------- */
 let editando = null;      // id do item em edição
 let codigoPendente = null; // código de barras lido para o produto no formulário
+let listaPendente = null;  // item da lista de compras que está no formulário
 
 function renderAtual() {
   const ul = $('lista-itens');
   ul.innerHTML = db.atual.map((i) => `
     <li class="item" data-id="${i.id}">
-      <div class="info">
+      <div class="linha">
         <div class="nome">${esc(i.nome)}</div>
-        <div class="sub">${fmtQtd(i.qtd)} × ${brl(i.preco)}</div>
+        <div class="valor">${brl(i.qtd * i.preco)}</div>
       </div>
-      <div class="valor">${brl(i.qtd * i.preco)}</div>
-      <button class="mini" data-acao="editar" aria-label="Editar ${esc(i.nome)}">✏️</button>
-      <button class="mini del" data-acao="remover" aria-label="Remover ${esc(i.nome)}">✕</button>
+      <div class="linha">
+        <div class="passo">
+          <button class="mini" data-acao="menos" aria-label="Diminuir quantidade de ${esc(i.nome)}"${i.qtd <= 1 ? ' disabled' : ''}>−</button>
+          <b>${fmtQtd(i.qtd)}</b>
+          <button class="mini" data-acao="mais" aria-label="Aumentar quantidade de ${esc(i.nome)}">+</button>
+        </div>
+        <span class="sub">× ${brl(i.preco)}</span>
+        <span class="espaco"></span>
+        <button class="mini" data-acao="editar" aria-label="Editar ${esc(i.nome)}">✏️</button>
+        <button class="mini del" data-acao="remover" aria-label="Remover ${esc(i.nome)}">✕</button>
+      </div>
     </li>`).join('');
   const n = db.atual.length;
   $('vazio').hidden = n > 0;
   $('total-qtd').textContent = n === 1 ? '1 item' : `${n} itens`;
   $('total-valor').textContent = brl(totalItens(db.atual));
   $('btn-finalizar').disabled = n === 0;
+  renderOrcamento();
+  renderFalta();
   renderNomes();
 }
 
@@ -98,29 +112,47 @@ function renderUltimos() {
   const nome = $('f-nome').value;
   const box = $('ultimos');
   const lista = nome.trim() ? ultimosPrecos(nome, codigoPendente) : [];
-  if (!lista.length) { box.hidden = true; return; }
+  box.hidden = !lista.length;
+  if (lista.length) {
+    box.innerHTML = `<b>Quanto paguei nas últimas ${lista.length === 1 ? 'compra' : lista.length + ' compras'}:</b><ul>` +
+      lista.map((u) => `<li><span class="preco">${brl(u.preco)}</span><span>${fmtData(u.data)}${u.loja ? ' · ' + esc(u.loja) : ''}</span></li>`).join('') +
+      '</ul>';
+  }
+  renderCompara(lista);
+}
+
+/* Aviso: preço digitado × preço da última compra */
+function renderCompara(lista) {
+  const box = $('compara');
+  const preco = num($('f-preco').value);
+  if (!lista) lista = $('f-nome').value.trim() ? ultimosPrecos($('f-nome').value, codigoPendente) : [];
+  if (!lista.length || !(preco > 0)) { box.hidden = true; return; }
+  const dif = Math.round((preco - lista[0].preco) * 100) / 100;
   box.hidden = false;
-  box.innerHTML = `<b>Quanto paguei nas últimas ${lista.length === 1 ? 'compra' : lista.length + ' compras'}:</b><ul>` +
-    lista.map((u) => `<li><span class="preco">${brl(u.preco)}</span><span>${fmtData(u.data)}${u.loja ? ' · ' + esc(u.loja) : ''}</span></li>`).join('') +
-    '</ul>';
+  box.className = 'compara ' + (dif > 0 ? 'caro' : dif < 0 ? 'barato' : 'igual');
+  box.textContent = dif > 0 ? `↑ ${brl(dif)} mais caro que da última vez`
+    : dif < 0 ? `↓ ${brl(-dif)} mais barato que da última vez`
+    : '= Mesmo preço da última vez';
 }
 
 $('f-nome').addEventListener('input', () => { renderUltimos(); });
 
 /* Preço: digita só os números e a vírgula entra sozinha (2490 → 24,90) */
-$('f-preco').addEventListener('input', (e) => {
+function mascaraPreco(e) {
   const el = e.target;
   const digitos = el.value.replace(/\D/g, '').slice(0, 9);
   const centavos = parseInt(digitos || '0', 10);
   const apagando = (e.inputType || '').startsWith('delete');
   if (!digitos || (centavos === 0 && apagando)) { el.value = ''; return; }
-  el.value = (centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  el.value = fmtNum(centavos / 100);
   el.setSelectionRange(el.value.length, el.value.length);
-});
+}
+$('f-preco').addEventListener('input', (e) => { mascaraPreco(e); renderCompara(); });
 
 function limparForm() {
   editando = null;
   codigoPendente = null;
+  listaPendente = null;
   $('form-item').reset();
   $('f-qtd').value = '1';
   $('btn-add').textContent = 'Adicionar';
@@ -141,7 +173,10 @@ $('form-item').addEventListener('submit', (e) => {
     const it = db.atual.find((i) => i.id === editando);
     if (it) Object.assign(it, { nome, qtd, preco, codigo: codigoPendente || it.codigo });
   } else {
-    db.atual.push({ id: uid(), nome, qtd, preco, codigo: codigoPendente || undefined });
+    // se o produto está na lista de compras, marca como pego
+    const daLista = db.lista.find((l) => l.id === listaPendente) || db.lista.find((l) => !l.feito && norm(l.nome) === norm(nome));
+    if (daLista) daLista.feito = true;
+    db.atual.push({ id: uid(), nome, qtd, preco, codigo: codigoPendente || undefined, listaId: daLista ? daLista.id : undefined });
   }
   if (codigoPendente) db.codigos[codigoPendente] = nome; // lembra o nome para a próxima leitura
   salvar();
@@ -158,8 +193,18 @@ $('lista-itens').addEventListener('click', (e) => {
   const id = btn.closest('li').dataset.id;
   const it = db.atual.find((i) => i.id === id);
   if (!it) return;
-  if (btn.dataset.acao === 'remover') {
+  const acao = btn.dataset.acao;
+  if (acao === 'mais' || acao === 'menos') {
+    const nova = arred(it.qtd + (acao === 'mais' ? 1 : -1));
+    if (nova <= 0) return;
+    it.qtd = nova;
+    if (editando === id) $('f-qtd').value = fmtQtd(nova).replace(/\./g, '');
+    salvar();
+    renderAtual();
+  } else if (acao === 'remover') {
     db.atual = db.atual.filter((i) => i.id !== id);
+    const daLista = db.lista.find((l) => l.id === it.listaId);
+    if (daLista) daLista.feito = false; // volta para "falta pegar"
     if (editando === id) limparForm();
     salvar();
     renderAtual();
@@ -168,12 +213,117 @@ $('lista-itens').addEventListener('click', (e) => {
     codigoPendente = it.codigo || null;
     $('f-nome').value = it.nome;
     $('f-qtd').value = fmtQtd(it.qtd).replace(/\./g, '');
-    $('f-preco').value = it.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    $('f-preco').value = fmtNum(it.preco);
     $('btn-add').textContent = 'Salvar alteração';
     $('btn-cancel-edit').hidden = false;
     renderUltimos();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+});
+
+/* ---------- Orçamento da compra ---------- */
+function renderOrcamento() {
+  const o = db.orcamento;
+  const total = totalItens(db.atual);
+  const barra = $('orc-barra');
+  $('btn-orc').textContent = o ? 'Alterar' : 'Definir';
+  barra.hidden = !o;
+  if (!o) { $('orc-txt').innerHTML = '<span class="sub">Sem orçamento para esta compra</span>'; return; }
+  const resto = Math.round((o - total) * 100) / 100;
+  const pct = total / o;
+  barra.className = 'orc-barra' + (resto < 0 ? ' estourou' : pct >= 0.85 ? ' perto' : '');
+  $('orc-fill').style.width = Math.min(100, pct * 100) + '%';
+  $('orc-txt').innerHTML = `<span class="sub">Orçamento ${brl(o)}</span><br>` +
+    (resto < 0 ? `<b class="estourou">Passou ${brl(-resto)}</b>` : `<b>Restam ${brl(resto)}</b>`);
+}
+$('btn-orc').addEventListener('click', () => {
+  $('orc-valor').value = db.orcamento ? fmtNum(db.orcamento) : '';
+  $('orc-remover').hidden = !db.orcamento;
+  $('dlg-orc').showModal();
+});
+$('orc-valor').addEventListener('input', mascaraPreco);
+$('orc-cancelar').addEventListener('click', () => $('dlg-orc').close());
+$('orc-remover').addEventListener('click', () => { db.orcamento = null; salvar(); renderOrcamento(); $('dlg-orc').close(); });
+$('form-orc').addEventListener('submit', () => {
+  const v = num($('orc-valor').value);
+  db.orcamento = v > 0 ? v : null;
+  salvar();
+  renderOrcamento();
+});
+
+/* ---------- Lista de compras ---------- */
+function renderLista() {
+  const ordenada = [...db.lista].sort((a, b) => a.feito - b.feito);
+  $('lista-planejada').innerHTML = ordenada.map((l) => `
+    <li class="item-lista${l.feito ? ' feito' : ''}" data-id="${l.id}">
+      <button class="check" data-acao="marcar" aria-label="${l.feito ? 'Desmarcar' : 'Marcar'} ${esc(l.nome)}">${l.feito ? '✓' : ''}</button>
+      <span class="nome grow">${esc(l.nome)}</span>
+      <span class="sub">${fmtQtd(l.qtd)}</span>
+      <button class="mini del" data-acao="remover" aria-label="Remover ${esc(l.nome)}">✕</button>
+    </li>`).join('');
+  $('lista-vazia').hidden = db.lista.length > 0;
+  $('btn-limpar-lista').hidden = db.lista.length === 0;
+}
+
+function renderFalta() {
+  const falta = db.lista.filter((l) => !l.feito);
+  $('falta').hidden = falta.length === 0;
+  $('falta-tit').textContent = `Falta pegar (${falta.length})`;
+  $('falta-chips').innerHTML = falta.map((l) =>
+    `<button type="button" class="chip" data-id="${l.id}">${esc(l.nome)}${l.qtd !== 1 ? ' · ' + fmtQtd(l.qtd) : ''}</button>`).join('');
+}
+
+$('form-lista').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const nome = $('l-nome').value.trim().replace(/\s+/g, ' ');
+  const qtd = num($('l-qtd').value);
+  if (!nome) return;
+  if (!(qtd > 0)) { toast('Quantidade inválida'); return; }
+  const igual = db.lista.find((l) => !l.feito && norm(l.nome) === norm(nome));
+  if (igual) igual.qtd = arred(igual.qtd + qtd);
+  else db.lista.push({ id: uid(), nome, qtd, feito: false });
+  salvar();
+  $('form-lista').reset();
+  $('l-qtd').value = '1';
+  renderLista();
+  renderFalta();
+  $('l-nome').focus();
+});
+
+$('lista-planejada').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-acao]');
+  if (!btn) return;
+  const id = btn.closest('li').dataset.id;
+  const l = db.lista.find((x) => x.id === id);
+  if (!l) return;
+  if (btn.dataset.acao === 'marcar') l.feito = !l.feito;
+  else db.lista = db.lista.filter((x) => x.id !== id);
+  salvar();
+  renderLista();
+  renderFalta();
+});
+
+$('btn-limpar-lista').addEventListener('click', () => {
+  if (!confirm('Apagar todos os itens da lista de compras?')) return;
+  db.lista = [];
+  salvar();
+  renderLista();
+  renderFalta();
+});
+
+/* Toque em um item de "Falta pegar": leva para o formulário, só falta o preço */
+$('falta-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  const l = db.lista.find((x) => x.id === chip.dataset.id);
+  if (!l) return;
+  limparForm();
+  listaPendente = l.id;
+  $('f-nome').value = l.nome;
+  $('f-qtd').value = fmtQtd(l.qtd).replace(/\./g, '');
+  renderUltimos();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  $('f-preco').focus();
 });
 
 /* ---------- Finalizar ---------- */
@@ -195,6 +345,7 @@ $('form-fim').addEventListener('submit', () => {
     total: totalItens(db.atual),
   });
   db.atual = [];
+  db.lista = db.lista.filter((l) => !l.feito); // o que não foi pego fica para a próxima
   salvar();
   limparForm();
   renderAtual();
@@ -254,6 +405,7 @@ $('file-import').addEventListener('change', async (e) => {
     db = Object.assign(vazio(), novo);
     salvar();
     renderAtual();
+    renderLista();
     renderHistorico();
     toast('Backup importado ✔');
   } catch {
