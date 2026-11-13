@@ -7,6 +7,10 @@ Aplicativo web (PWA) para usar no celular na hora das compras no mercado.
   (base aberta [Open Food Facts](https://world.openfoodfacts.org)). Se o produto não
   estiver na base, você digita o nome uma vez e o app lembra nas próximas leituras.
 - Ao informar o produto, mostra quanto você pagou nas últimas 3 compras.
+- Avisa se o preço digitado está mais caro ou mais barato que da última vez.
+- Orçamento da compra, com barra que mostra quanto ainda resta.
+- Lista de compras: monte em casa e, no mercado, toque no item para informar só o preço.
+- Botões + e − para ajustar a quantidade direto no item.
 - Mantém o histórico de todas as compras finalizadas.
 - Resumo com o total gasto por mês, média por compra e produtos em que mais gastou.
 - Exporta/importa backup em arquivo `.json`.

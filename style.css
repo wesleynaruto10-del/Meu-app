@@ -61,8 +61,13 @@ input:focus, select:focus { outline: 2px solid var(--brand); outline-offset: 1px
 .lista > li {
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px;
 }
-.item { display: flex; align-items: center; gap: 8px; }
-.item .info { flex: 1; min-width: 0; }
+.item .linha { display: flex; align-items: center; gap: 8px; }
+.item .linha:first-child { justify-content: space-between; align-items: flex-start; }
+.item .espaco { flex: 1; }
+.passo { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px; }
+.passo b { min-width: 36px; text-align: center; font-variant-numeric: tabular-nums; }
+.passo .mini { font-size: 1.3rem; font-weight: 700; }
+.mini:disabled { opacity: .3; }
 .item .nome { font-weight: 600; overflow-wrap: anywhere; }
 .item .sub { color: var(--muted); font-size: .85rem; }
 .item .valor { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -134,3 +139,40 @@ dialog[open] form, #dlg-scan[open] { display: flex; }
   opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 20; max-width: 90vw; text-align: center;
 }
 #toast.show { opacity: 1; }
+
+/* Aviso de preço */
+.compara { border-radius: 10px; padding: 8px 10px; font-size: .9rem; font-weight: 600; }
+.compara.caro { background: #fde8e6; color: #912018; }
+.compara.barato { background: #dcf5e7; color: #0b5c33; }
+.compara.igual { background: var(--chip); color: var(--text); }
+@media (prefers-color-scheme: dark) {
+  .compara.caro { background: #4a1c18; color: #ffb4ab; }
+  .compara.barato { background: #12402a; color: #8fe3b4; }
+}
+
+/* Orçamento */
+.row.centro { align-items: center; }
+.orc-barra { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.orc-barra i { display: block; height: 100%; background: var(--brand); border-radius: 5px; transition: width .2s; }
+.orc-barra.perto i { background: #d98a00; }
+.orc-barra.estourou i { background: var(--danger); }
+b.estourou { color: var(--danger); }
+
+/* Lista de compras */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: inherit; font-size: .9rem; min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--brand); background: var(--chip); color: var(--text); cursor: pointer;
+}
+.item-lista { display: flex; align-items: center; gap: 10px; }
+.item-lista .nome { font-weight: 600; overflow-wrap: anywhere; }
+.item-lista.feito .nome { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+.check {
+  width: 32px; height: 32px; flex: none; border-radius: 8px; border: 2px solid var(--brand);
+  background: none; color: var(--brand-text); font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.item-lista.feito .check { background: var(--brand); }
+#l-qtd { width: 80px; }
+.btn.largo { width: 100%; }
+
+[hidden] { display: none !important; }
