@@ -21,7 +21,9 @@ Aplicativo web (PWA) para usar no celular na hora das compras no mercado.
 - Reconhece o mesmo produto escrito de formas parecidas ("Arroz 5kg" e "Arroz de 5 kg") e permite juntar produtos repetidos.
 - Mantém o histórico de todas as compras finalizadas.
 - Resumo com o total gasto por mês, média por compra e produtos em que mais gastou.
+- Edita compras já finalizadas (data, mercado, itens e preços).
 - Exporta/importa backup em arquivo `.json`.
+- Exporta o histórico para planilha (`.csv`, abre no Excel e no Google Planilhas).
 
 Os dados ficam salvos apenas no próprio aparelho (`localStorage`); não há servidor nem conta.
 
