@@ -72,8 +72,8 @@ function renderAtual() {
         </div>
         <span class="sub">× ${brl(i.preco)}</span>
         <span class="espaco"></span>
-        <button class="mini" data-acao="editar" aria-label="Editar ${esc(i.nome)}">✏️</button>
-        <button class="mini del" data-acao="remover" aria-label="Remover ${esc(i.nome)}">✕</button>
+        <button class="mini" data-acao="editar" aria-label="Editar ${esc(i.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
+        <button class="mini del" data-acao="remover" aria-label="Remover ${esc(i.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
       </div>
     </li>`).join('');
   const n = db.atual.length;
@@ -256,10 +256,10 @@ function renderLista() {
   const ordenada = [...db.lista].sort((a, b) => a.feito - b.feito);
   $('lista-planejada').innerHTML = ordenada.map((l) => `
     <li class="item-lista${l.feito ? ' feito' : ''}" data-id="${l.id}">
-      <button class="check" data-acao="marcar" aria-label="${l.feito ? 'Desmarcar' : 'Marcar'} ${esc(l.nome)}">${l.feito ? '✓' : ''}</button>
+      <button class="check" data-acao="marcar" aria-label="${l.feito ? 'Desmarcar' : 'Marcar'} ${esc(l.nome)}">${l.feito ? '<svg class="ic" aria-hidden="true"><use href="#i-check"/></svg>' : ''}</button>
       <span class="nome grow">${esc(l.nome)}</span>
       <span class="sub">${fmtQtd(l.qtd)}</span>
-      <button class="mini del" data-acao="remover" aria-label="Remover ${esc(l.nome)}">✕</button>
+      <button class="mini del" data-acao="remover" aria-label="Remover ${esc(l.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
     </li>`).join('');
   $('lista-vazia').hidden = db.lista.length > 0;
   $('btn-limpar-lista').hidden = db.lista.length === 0;
