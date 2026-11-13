@@ -1,5 +1,5 @@
 // Cache simples para o app abrir sem internet (rede primeiro, cache como reserva).
-const CACHE = 'minhas-compras-v1';
+const CACHE = 'minhas-compras-v2';
 const ARQUIVOS = ['./', 'index.html', 'style.css', 'app.js', 'icon.svg', 'manifest.webmanifest', 'vendor/zxing.min.js'];
 
 self.addEventListener('install', (e) => {
