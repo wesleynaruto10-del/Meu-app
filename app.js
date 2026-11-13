@@ -62,7 +62,10 @@ function renderAtual() {
   ul.innerHTML = db.atual.map((i) => `
     <li class="item" data-id="${i.id}">
       <div class="linha">
-        <div class="nome">${esc(i.nome)}</div>
+        <div>
+          <div class="nome">${esc(i.nome)}</div>
+          ${porUnidade(i.nome, i.preco) ? `<span class="selo-un">${fmtPorUn(porUnidade(i.nome, i.preco))}</span>` : ''}
+        </div>
         <div class="valor">${brl(i.qtd * i.preco)}</div>
       </div>
       <div class="linha">
@@ -71,7 +74,7 @@ function renderAtual() {
           <b>${fmtQtd(i.qtd)}</b>
           <button class="mini" data-acao="mais" aria-label="Aumentar quantidade de ${esc(i.nome)}">+</button>
         </div>
-        <span class="sub">× ${brl(i.preco)}${porUnidade(i.nome, i.preco) ? ' · ' + fmtPorUn(porUnidade(i.nome, i.preco)) : ''}</span>
+        <span class="sub">× ${brl(i.preco)}</span>
         <span class="espaco"></span>
         <button class="mini" data-acao="editar" aria-label="Editar ${esc(i.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
         <button class="mini del" data-acao="remover" aria-label="Remover ${esc(i.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
@@ -684,7 +687,7 @@ function renderPorUnidade() {
   if (!t || !(preco > 0)) { box.hidden = true; return; }
   const atual = preco / t.q;
   const linhas = [];
-  if (t.q !== 1) linhas.push(`Sai a <b>${brl(atual)} por ${t.un}</b>`);
+  if (t.q !== 1) linhas.push(`Sai a <span class="selo-un">${brl(atual)}/${t.un}</span>`);
   // outros tamanhos do mesmo produto no histórico (preço mais recente de cada um)
   const outros = new Map();
   for (const c of comprasOrdenadas()) {
