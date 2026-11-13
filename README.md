@@ -12,6 +12,11 @@ Aplicativo web (PWA) para usar no celular na hora das compras no mercado.
 - Lista de compras: monte em casa e, no mercado, toque no item para informar só o preço.
 - Lista por voz: toque em **Falar os itens** e dite ("dois leites, arroz e pão"); diga "pronto" para terminar.
 - Botões + e − para ajustar a quantidade direto no item.
+- Compra por voz: toque em **Falar produto e preço** e diga "arroz 24 e 90".
+- Preço por kg, litro ou unidade quando o nome traz o tamanho ("Arroz 5kg"), comparando com outros tamanhos já comprados.
+- Comparação de mercados: mostra onde o produto saiu mais barato.
+- Sugestões para a lista com base na frequência de compra de cada produto.
+- Lembrete de backup a cada 30 dias.
 - Mantém o histórico de todas as compras finalizadas.
 - Resumo com o total gasto por mês, média por compra e produtos em que mais gastou.
 - Exporta/importa backup em arquivo `.json`.

@@ -298,3 +298,18 @@ dialog { max-height: 92dvh; overflow: auto; }
 @keyframes pulso { 50% { box-shadow: 0 0 0 8px rgba(192, 39, 28, .18); } }
 @media (prefers-reduced-motion: reduce) { .btn.voz.ouvindo { animation: none; } }
 .voz-status { margin: 0; font-size: .9rem; color: var(--muted); text-align: center; min-height: 1.4em; }
+
+/* Preço por unidade, mercados, sugestões e aviso de backup */
+.porun { margin: 0; font-size: .88rem; color: var(--muted); background: var(--field); border-radius: 14px; padding: 10px 14px; line-height: 1.6; }
+.porun b { color: var(--text); }
+.porun b.ok { color: var(--brand); }
+.mais-barato { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); font-size: .88rem; }
+.merc { list-style: none; margin: 0; padding: 0; font-size: .92rem; }
+.merc li { padding: 8px 0; border-top: 1px solid var(--line); }
+.merc li div { display: flex; justify-content: space-between; gap: 8px; }
+.merc li b { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chip small { font-weight: 400; color: var(--muted); margin-left: 4px; }
+.card.aviso { border: 1.5px solid var(--warn); margin-top: 8px; }
+.card.aviso p { margin-top: 2px; }
+@media (min-width: 1000px) { #tab-resumo.active { grid-template-columns: repeat(2, 1fr); } .card.aviso { max-width: 520px; } }
+.ultimos .mais-barato b { display: inline; margin: 0; font-size: inherit; font-weight: 700; color: var(--text); }
