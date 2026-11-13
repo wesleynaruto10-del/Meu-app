@@ -38,11 +38,16 @@ const totalItens = (itens) => itens.reduce((s, i) => s + i.qtd * i.preco, 0);
 
 let toastTimer;
 function toast(msg) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  // espera a janela (se houver) terminar de fechar; se continuar aberta, o aviso aparece por cima dela
+  setTimeout(() => {
+    const t = $('toast');
+    (document.querySelector('dialog[open]') || document.body).appendChild(t);
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
+  }, 0);
 }
 
 /* ---------- Abas ---------- */
@@ -1016,6 +1021,125 @@ $('form-juntar').addEventListener('submit', () => {
   toast(n > 1 ? `${n} produtos agora são “${nomeFinal}” ✔` : `Renomeado para “${nomeFinal}” ✔`);
 });
 
+/* ---------- Editar compra finalizada ---------- */
+let edId = null;
+let edItens = [];
+
+function edLerTela() {
+  edItens = [...$('ed-itens').querySelectorAll('.ed-item')].map((el, i) => ({
+    nome: el.querySelector('.ed-nome').value,
+    qtd: el.querySelector('.ed-qtd').value,
+    preco: el.querySelector('.ed-preco').value,
+    codigo: edItens[i] ? edItens[i].codigo : undefined,
+  }));
+}
+function edTotal() {
+  const total = [...$('ed-itens').querySelectorAll('.ed-item')].reduce((s, el) => {
+    const q = num(el.querySelector('.ed-qtd').value);
+    const p = num(el.querySelector('.ed-preco').value);
+    return s + (q > 0 && p >= 0 ? q * p : 0);
+  }, 0);
+  $('ed-total').textContent = brl(total);
+}
+function edRender() {
+  $('ed-itens').innerHTML = edItens.map((i, n) => `
+    <div class="ed-item">
+      <div class="row">
+        <input class="ed-nome grow" value="${esc(i.nome)}" placeholder="Produto" aria-label="Produto ${n + 1}" list="lista-nomes">
+        <button type="button" class="mini del" data-rem="${n}" aria-label="Remover item ${n + 1}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
+      </div>
+      <div class="row">
+        <label>Qtd.<input class="ed-qtd" inputmode="decimal" value="${esc(i.qtd)}"></label>
+        <label class="grow">Valor unitário (R$)<input class="ed-preco" inputmode="numeric" value="${esc(i.preco)}" placeholder="0,00"></label>
+      </div>
+    </div>`).join('');
+  edTotal();
+}
+
+function abrirEdicao(id) {
+  const c = db.compras.find((x) => x.id === id);
+  if (!c) return;
+  edId = id;
+  edItens = c.itens.map((i) => ({ nome: i.nome, qtd: fmtQtd(i.qtd).replace(/\./g, ''), preco: fmtNum(i.preco), codigo: i.codigo }));
+  $('ed-data').value = c.data;
+  $('ed-loja').value = c.loja || '';
+  edRender();
+  $('dlg-editar').showModal();
+}
+
+$('ed-itens').addEventListener('input', (e) => {
+  if (e.target.classList.contains('ed-preco')) mascaraPreco(e);
+  edTotal();
+});
+$('ed-itens').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-rem]');
+  if (!btn) return;
+  edLerTela();
+  edItens.splice(+btn.dataset.rem, 1);
+  edRender();
+});
+$('ed-add').addEventListener('click', () => {
+  edLerTela();
+  edItens.push({ nome: '', qtd: '1', preco: '' });
+  edRender();
+  const nomes = $('ed-itens').querySelectorAll('.ed-nome');
+  nomes[nomes.length - 1].focus();
+});
+$('ed-cancelar').addEventListener('click', () => $('dlg-editar').close());
+$('form-editar').addEventListener('submit', (e) => {
+  const c = db.compras.find((x) => x.id === edId);
+  if (!c) return;
+  edLerTela();
+  const itens = [];
+  for (const i of edItens) {
+    const nome = i.nome.trim().replace(/\s+/g, ' ');
+    if (!nome && !i.preco.trim()) continue; // linha em branco
+    const qtd = num(i.qtd);
+    const preco = num(i.preco);
+    if (!nome || !(qtd > 0) || !(preco >= 0)) {
+      e.preventDefault();
+      toast(!nome ? 'Há um item sem nome.' : `Confira a quantidade e o valor de “${nome}”.`);
+      return;
+    }
+    itens.push({ nome: canon(nome), qtd, preco, codigo: i.codigo });
+  }
+  if (!itens.length) { e.preventDefault(); toast('A compra precisa de pelo menos um item. Para apagar tudo, use “Excluir compra”.'); return; }
+  if (!$('ed-data').value) { e.preventDefault(); toast('Informe a data.'); return; }
+  c.data = $('ed-data').value;
+  c.loja = $('ed-loja').value.trim();
+  c.itens = itens;
+  c.total = totalItens(itens);
+  salvar();
+  renderHistorico();
+  renderNomes();
+  toast('Compra atualizada ✔');
+});
+
+/* ---------- Exportar para planilha (CSV) ---------- */
+function exportarPlanilha() {
+  if (!db.compras.length) { toast('Ainda não há compras para exportar.'); return; }
+  const campo = (v) => {
+    let s = String(v);
+    if (/^[=+\-@\t]/.test(s)) s = "'" + s; // não deixa a planilha tratar texto como fórmula
+    return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const dec = (n, casas) => n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: Math.max(casas, 3), useGrouping: false });
+  const linhas = [['Data', 'Mercado', 'Produto', 'Quantidade', 'Valor unitário', 'Total do item'].join(';')];
+  for (const c of [...comprasOrdenadas()].reverse()) {
+    for (const i of c.itens) {
+      linhas.push([fmtData(c.data), campo(c.loja || ''), campo(i.nome), dec(i.qtd, 0), dec(i.preco, 2), dec(Math.round(i.qtd * i.preco * 100) / 100, 2)].join(';'));
+    }
+  }
+  // BOM + ponto e vírgula: abre direto no Excel e no Google Planilhas em português
+  const blob = new Blob(['﻿' + linhas.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `minhas-compras-${hojeISO()}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$('btn-planilha').addEventListener('click', exportarPlanilha);
+
 /* ---------- Finalizar ---------- */
 $('btn-finalizar').addEventListener('click', () => {
   $('fim-total').textContent = brl(totalItens(db.atual));
@@ -1059,11 +1183,12 @@ function renderHistorico() {
         <b>${brl(c.total)}</b>
       </summary>
       <table>${c.itens.map((i) => `<tr><td>${esc(i.nome)}<br><span class="sub">${fmtQtd(i.qtd)} × ${brl(i.preco)}</span></td><td>${brl(i.qtd * i.preco)}</td></tr>`).join('')}</table>
-      <div class="acoes"><button class="link-del" data-del="${c.id}">Excluir compra</button></div>
+      <div class="acoes"><button class="link-edit" data-edit="${c.id}">Editar</button><button class="link-del" data-del="${c.id}">Excluir compra</button></div>
     </details></li>`).join('');
 }
 
 $('lista-compras').addEventListener('click', (e) => {
+  if (e.target.dataset && e.target.dataset.edit) { abrirEdicao(e.target.dataset.edit); return; }
   const id = e.target.dataset && e.target.dataset.del;
   if (!id) return;
   const c = db.compras.find((x) => x.id === id);

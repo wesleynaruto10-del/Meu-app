@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=10">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -149,6 +149,9 @@
         <button class="btn grow" id="btn-import">Importar</button>
         <input type="file" id="file-import" accept="application/json,.json" hidden>
       </div>
+      <strong>Planilha</strong>
+      <p class="muted">Baixe todo o histórico em um arquivo que abre no Excel ou no Google Planilhas.</p>
+      <button type="button" class="btn" id="btn-planilha">Exportar planilha</button>
     </div>
   </section>
 
@@ -235,6 +238,28 @@
   </form>
 </dialog>
 
+<!-- Editar compra -->
+<dialog id="dlg-editar">
+  <form method="dialog" id="form-editar">
+    <h2>Editar compra</h2>
+    <div class="row">
+      <label>Data
+        <input id="ed-data" type="date" required>
+      </label>
+      <label class="grow">Mercado
+        <input id="ed-loja" list="lista-lojas" placeholder="Opcional">
+      </label>
+    </div>
+    <div id="ed-itens" class="ed-itens"></div>
+    <button type="button" class="btn" id="ed-add">+ Adicionar item</button>
+    <p class="ed-total">Total: <strong id="ed-total"></strong></p>
+    <div class="row">
+      <button type="button" class="btn grow" id="ed-cancelar">Voltar</button>
+      <button type="submit" class="btn primary grow">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Importar lista -->
 <dialog id="dlg-importar-lista">
   <form method="dialog" id="form-importar-lista">
@@ -271,6 +296,6 @@
 </dialog>
 
 <div id="toast" role="status"></div>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>

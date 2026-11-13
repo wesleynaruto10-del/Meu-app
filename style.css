@@ -340,3 +340,14 @@ textarea:focus { outline: none; border-color: var(--brand); background: var(--ca
 .opcao .sub { white-space: nowrap; }
 #juntar-sug .chips { margin-top: 8px; }
 #juntar-sug .chip { min-height: 36px; font-size: .82rem; text-align: left; border-radius: 14px; padding: 6px 12px; }
+
+/* Editar compra */
+.link-edit { border: 0; background: none; color: var(--brand); font: inherit; font-size: .88rem; font-weight: 600; min-height: 40px; cursor: pointer; margin-right: 12px; }
+.ed-itens { display: flex; flex-direction: column; gap: 10px; max-height: 42dvh; overflow: auto; }
+.ed-item { background: var(--field); border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ed-item input { background: var(--card); min-height: 44px; padding: 8px 12px; }
+.ed-item .row { align-items: center; }
+.ed-item .ed-qtd { width: 76px; }
+.ed-total { margin: 0; text-align: right; }
+.ed-total strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+#ed-data { min-width: 150px; }
