@@ -2,7 +2,7 @@
 
 /* ---------- Dados ---------- */
 const KEY = 'minhas-compras-v1';
-const vazio = () => ({ atual: [], compras: [], codigos: {}, lista: [], orcamento: null });
+const vazio = () => ({ atual: [], compras: [], codigos: {}, lista: [], orcamento: null, ultimoBackup: null, backupAdiado: null });
 let db = carregar();
 
 function carregar() {
@@ -45,7 +45,7 @@ function toast(msg) {
 document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
-  if (b.dataset.tab !== 'lista') pararVoz();
+  pararVoz();
   if (b.dataset.tab === 'lista') renderLista();
   if (b.dataset.tab === 'historico') renderHistorico();
   if (b.dataset.tab === 'resumo') renderResumo();
@@ -71,7 +71,7 @@ function renderAtual() {
           <b>${fmtQtd(i.qtd)}</b>
           <button class="mini" data-acao="mais" aria-label="Aumentar quantidade de ${esc(i.nome)}">+</button>
         </div>
-        <span class="sub">× ${brl(i.preco)}</span>
+        <span class="sub">× ${brl(i.preco)}${porUnidade(i.nome, i.preco) ? ' · ' + fmtPorUn(porUnidade(i.nome, i.preco)) : ''}</span>
         <span class="espaco"></span>
         <button class="mini" data-acao="editar" aria-label="Editar ${esc(i.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-edit"/></svg></button>
         <button class="mini del" data-acao="remover" aria-label="Remover ${esc(i.nome)}"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button>
@@ -118,8 +118,13 @@ function renderUltimos() {
     box.innerHTML = `<b>Quanto paguei nas últimas ${lista.length === 1 ? 'compra' : lista.length + ' compras'}:</b><ul>` +
       lista.map((u) => `<li><span class="preco">${brl(u.preco)}</span><span>${fmtData(u.data)}${u.loja ? ' · ' + esc(u.loja) : ''}</span></li>`).join('') +
       '</ul>';
+    const mercados = precosPorMercado(nome, codigoPendente);
+    if (mercados.length > 1 && mercados[0].preco < mercados[mercados.length - 1].preco) {
+      box.innerHTML += `<p class="mais-barato">Mais barato: <b>${brl(mercados[0].preco)}</b> no ${esc(mercados[0].loja)}</p>`;
+    }
   }
   renderCompara(lista);
+  renderPorUnidade();
 }
 
 /* Aviso: preço digitado × preço da última compra */
@@ -148,7 +153,7 @@ function mascaraPreco(e) {
   el.value = fmtNum(centavos / 100);
   el.setSelectionRange(el.value.length, el.value.length);
 }
-$('f-preco').addEventListener('input', (e) => { mascaraPreco(e); renderCompara(); });
+$('f-preco').addEventListener('input', (e) => { mascaraPreco(e); renderCompara(); renderPorUnidade(); });
 
 function limparForm() {
   editando = null;
@@ -183,7 +188,7 @@ $('form-item').addEventListener('submit', (e) => {
   salvar();
   limparForm();
   renderAtual();
-  $('f-nome').focus();
+  if (!vozAtiva) $('f-nome').focus(); // por voz, não abre o teclado
 });
 
 $('btn-cancel-edit').addEventListener('click', limparForm);
@@ -264,6 +269,7 @@ function renderLista() {
     </li>`).join('');
   $('lista-vazia').hidden = db.lista.length > 0;
   $('btn-limpar-lista').hidden = db.lista.length === 0;
+  renderSugestoes();
 }
 
 function renderFalta() {
@@ -318,68 +324,124 @@ $('btn-limpar-lista').addEventListener('click', () => {
   renderFalta();
 });
 
-/* ---------- Lista por voz ---------- */
-const NUMEROS = {
-  um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
-  onze: 11, doze: 12, quinze: 15, vinte: 20, meia: 0.5, meio: 0.5,
+/* ---------- Voz (lista e compra) ---------- */
+const NUM_EXT = {
+  zero: 0, um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9,
+  dez: 10, onze: 11, doze: 12, treze: 13, quatorze: 14, catorze: 14, quinze: 15, dezesseis: 16, dezessete: 17,
+  dezoito: 18, dezenove: 19, vinte: 20, trinta: 30, quarenta: 40, cinquenta: 50, sessenta: 60, setenta: 70,
+  oitenta: 80, noventa: 90, cem: 100, cento: 100, duzentos: 200, trezentos: 300, quatrocentos: 400, quinhentos: 500,
 };
+const NUMEROS = Object.assign({ meia: 0.5, meio: 0.5 }, NUM_EXT);
 const UNIDADES = '(?:kg|kilos?|quilos?|g|gramas?|l|litros?|ml|pacotes?|caixas?|latas?|garrafas?|unidades?|sacos?|potes?|bandejas?|duzias?|macos?|pes|cabecas?)';
 
-/* "dois leites, 1 kg de arroz e pão" → [{nome:'Leites', qtd:2}, {nome:'Arroz', qtd:1}, {nome:'Pão', qtd:1}] */
-function interpretarFala(texto) {
-  const partes = texto.toLowerCase()
-    .replace(/[.!?]/g, ' ')
-    .split(/(?<!\d),|,(?!\d)|;|\s+e\s+|\s+mais\s+|\s+depois\s+|\s+tamb[eé]m\s+/);
-  const itens = [];
-  for (let parte of partes) {
-    parte = parte.replace(/\s+/g, ' ').trim()
-      .replace(/^(?:e|adicionar?|adicione|colocar?|coloque|comprar?|anotar?|anote|p[oõ]e|botar?|quero|preciso de|falta)\s+/, '').trim();
-    if (!parte) continue;
-    let qtd = 1;
-    const palavras = parte.split(' ');
-    const primeira = norm(palavras[0]);
-    if (/^\d+(?:[.,]\d+)?$/.test(palavras[0]) && palavras.length > 1) {
-      qtd = parseFloat(palavras[0].replace(',', '.'));
-      palavras.shift();
-    } else if (primeira in NUMEROS && palavras.length > 1) {
-      qtd = NUMEROS[primeira];
-      palavras.shift();
-      if (qtd === 0.5 && /^duzias?$/.test(norm(palavras[0] || ''))) { qtd = 6; }
-    }
-    let resto = palavras.join(' ');
-    // "kg de arroz", "pacotes de macarrão" → fica só o produto
-    const semUnidade = norm(resto).match(new RegExp('^' + UNIDADES + ' (?:de |do |da )'));
-    if (semUnidade) {
-      if (/^duzias?/.test(semUnidade[0]) && qtd !== 6) qtd = qtd * 12;
-      resto = resto.split(' ').slice(semUnidade[0].trim().split(' ').length).join(' ');
-    }
-    resto = resto.replace(/^(?:de|do|da)\s+/, '').trim();
-    if (!resto || !(qtd > 0)) continue;
-    itens.push({ nome: resto.charAt(0).toUpperCase() + resto.slice(1), qtd });
+/* "2 kg de arroz" → {nome:'Arroz', qtd:2} */
+function interpretarItem(parte) {
+  parte = parte.toLowerCase().replace(/\s+/g, ' ').trim()
+    .replace(/^(?:e|adicionar?|adicione|colocar?|coloque|comprar?|anotar?|anote|p[oõ]e|botar?|quero|preciso de|falta)\s+/, '').trim();
+  if (!parte) return null;
+  let qtd = 1;
+  const palavras = parte.split(' ');
+  const primeira = norm(palavras[0]);
+  if (/^\d+(?:[.,]\d+)?$/.test(palavras[0]) && palavras.length > 1) {
+    qtd = parseFloat(palavras[0].replace(',', '.'));
+    palavras.shift();
+  } else if (primeira in NUMEROS && palavras.length > 1) {
+    qtd = NUMEROS[primeira];
+    palavras.shift();
+    if (qtd === 0.5 && /^duzias?$/.test(norm(palavras[0] || ''))) { qtd = 6; }
   }
-  return itens;
+  let resto = palavras.join(' ');
+  // "kg de arroz", "pacotes de macarrão" → fica só o produto
+  const semUnidade = norm(resto).match(new RegExp('^' + UNIDADES + ' (?:de |do |da )'));
+  if (semUnidade) {
+    if (/^duzias?/.test(semUnidade[0]) && qtd !== 6) qtd = qtd * 12;
+    resto = resto.split(' ').slice(semUnidade[0].trim().split(' ').length).join(' ');
+  }
+  resto = resto.replace(/^(?:de|do|da)\s+/, '').trim();
+  if (!resto || !(qtd > 0)) return null;
+  return { nome: resto.charAt(0).toUpperCase() + resto.slice(1), qtd };
+}
+
+/* "dois leites, 1 kg de arroz e pão" → três itens */
+function interpretarFala(texto) {
+  return texto.toLowerCase().replace(/[!?]/g, ' ').replace(/\.(?!\d)/g, ' ')
+    .split(/(?<!\d),|,(?!\d)|;|\s+e\s+|\s+mais\s+|\s+depois\s+|\s+tamb[eé]m\s+/)
+    .map(interpretarItem).filter(Boolean);
+}
+
+/* Separa o preço do fim da frase: "arroz 24 e 90", "leite R$ 4,59", "pão cinco reais e cinquenta" */
+function extrairPreco(texto) {
+  const toks = texto.toLowerCase().replace(/r\$\s*/g, ' r$ ').replace(/[!?]/g, ' ').replace(/\.(?!\d)/g, ' ')
+    .replace(/,(?!\d)/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  const ehNumero = (w) => /^\d+(?:[.,]\d+)?$/.test(w) || norm(w) in NUM_EXT;
+  const ehPreco = (w) => ehNumero(w) || ['e', 'r$', 'reais', 'real', 'centavos', 'centavo', 'por', 'a', 'custa', 'custou'].includes(norm(w));
+  let ini = toks.length;
+  while (ini > 0 && ehPreco(toks[ini - 1])) ini--;
+  while (ini < toks.length && !ehNumero(toks[ini]) && toks[ini] !== 'r$') ini++; // devolve "e", "a", "por" soltos ao nome
+  const sufixo = toks.slice(ini);
+  const semPreco = { preco: null, resto: toks.join(' ') };
+  if (!sufixo.some(ehNumero)) return semPreco;
+
+  // palavras → números, juntando "vinte e quatro" em 24
+  const nums = [];
+  let centavos = false;
+  for (let i = 0; i < sufixo.length; i++) {
+    const w = norm(sufixo[i]);
+    if (w === 'centavos' || w === 'centavo') { centavos = true; continue; }
+    if (!ehNumero(sufixo[i])) continue;
+    if (!(w in NUM_EXT)) { nums.push({ v: parseFloat(sufixo[i].replace(',', '.')), dec: /[.,]/.test(sufixo[i]) }); continue; }
+    let v = NUM_EXT[w];
+    let ultimo = v;
+    while (norm(sufixo[i + 1] || '') === 'e' && norm(sufixo[i + 2] || '') in NUM_EXT) {
+      const prox = NUM_EXT[norm(sufixo[i + 2])];
+      const cabe = (ultimo >= 100 && prox < 100) || (ultimo >= 20 && ultimo < 100 && prox < 10);
+      if (!cabe) break;
+      v += prox; ultimo = prox; i += 2;
+    }
+    nums.push({ v, dec: false });
+  }
+  let preco = null;
+  if (nums.length === 1) preco = centavos && !nums[0].dec ? nums[0].v / 100 : nums[0].v;
+  else if (nums.length === 2 && !nums[0].dec && !nums[1].dec && nums[1].v < 100) preco = nums[0].v + nums[1].v / 100;
+  if (preco === null || !(preco >= 0)) return semPreco;
+  const resto = toks.slice(0, ini).join(' ').replace(/\s+(?:a|por|custa|custou|de)$/, '');
+  return { preco: Math.round(preco * 100) / 100, resto };
 }
 
 const Reconhecedor = window.SpeechRecognition || window.webkitSpeechRecognition;
+const VOZ = {
+  lista: {
+    btn: 'btn-voz', txt: 'btn-voz-txt', status: 'voz-status', rotulo: 'Falar os itens',
+    dica: 'Pode falar: “dois leites, arroz e pão”. Diga “pronto” para terminar.',
+  },
+  compra: {
+    btn: 'btn-voz-compra', txt: 'btn-voz-compra-txt', status: 'voz-compra-status', rotulo: 'Falar produto e preço',
+    dica: 'Fale o produto e o preço: “arroz 24 e 90”. Diga “pronto” para terminar.',
+  },
+};
 let voz = null;        // reconhecimento em andamento
 let vozAtiva = false;  // o usuário quer continuar ditando
+let vozModo = 'lista';
 let vozSilencios = 0;
-let vozUltimos = [];   // itens adicionados pela última frase (para "desfazer")
+let vozUltimos = [];   // lista: itens adicionados pela última frase (para "desfazer")
+let vozUltimoItem = null; // compra: id do último item adicionado por voz
 
 function vozStatus(msg) {
-  $('voz-status').hidden = !msg;
-  $('voz-status').textContent = msg || '';
+  const el = $(VOZ[vozModo].status);
+  el.hidden = !msg;
+  el.textContent = msg || '';
 }
 function vozBotao() {
-  $('btn-voz').classList.toggle('ouvindo', vozAtiva);
-  $('btn-voz-txt').textContent = vozAtiva ? 'Ouvindo… toque para parar' : 'Falar os itens';
-  $('btn-voz').setAttribute('aria-pressed', vozAtiva);
+  for (const [modo, c] of Object.entries(VOZ)) {
+    const ligado = vozAtiva && vozModo === modo;
+    $(c.btn).classList.toggle('ouvindo', ligado);
+    $(c.txt).textContent = ligado ? 'Ouvindo… toque para parar' : c.rotulo;
+    $(c.btn).setAttribute('aria-pressed', ligado);
+  }
 }
 
-function vozFrase(texto) {
-  const limpo = norm(texto.replace(/[.!?,]/g, ' '));
-  if (/^(parar?|pare|pronto|terminar|terminei|acabou|acabei|so isso|e so|chega|fim)$/.test(limpo)) { pararVoz(); return; }
-  if (/^(desfazer|desfaz|apagar? (o )?ultimo|remover? (o )?ultimo|tira(r)? (o )?ultimo|errei)$/.test(limpo)) {
+function vozFraseLista(texto, desfazer) {
+  if (desfazer) {
     if (!vozUltimos.length) { vozStatus('Nada para desfazer.'); return; }
     vozUltimos.forEach(({ item, somou }) => {
       if (somou) item.qtd = arred(item.qtd - somou);
@@ -395,6 +457,53 @@ function vozFrase(texto) {
   vozUltimos = itens.map((i) => adicionarNaLista(i.nome, i.qtd));
   salvar(); renderLista(); renderFalta();
   vozStatus('Adicionado: ' + itens.map((i) => (i.qtd !== 1 ? fmtQtd(i.qtd) + ' ' : '') + i.nome).join(', '));
+}
+
+function vozFraseCompra(texto, desfazer) {
+  if (desfazer) {
+    const it = db.atual.find((i) => i.id === vozUltimoItem);
+    if (!it) { vozStatus('Nada para desfazer.'); return; }
+    db.atual = db.atual.filter((i) => i.id !== it.id);
+    const daLista = db.lista.find((l) => l.id === it.listaId);
+    if (daLista) daLista.feito = false;
+    vozUltimoItem = null;
+    salvar(); renderAtual();
+    vozStatus(`Removido: ${it.nome}. Pode continuar falando.`);
+    return;
+  }
+  const { preco, resto } = extrairPreco(texto);
+  const item = resto ? interpretarItem(resto) : null;
+  if (item) {
+    limparForm();
+    // reaproveita a grafia de um produto já comprado
+    const conhecido = [...$('lista-nomes').options].find((o) => norm(o.value) === norm(item.nome));
+    $('f-nome').value = conhecido ? conhecido.value : item.nome;
+    $('f-qtd').value = fmtQtd(item.qtd).replace(/\./g, '');
+  }
+  const nome = $('f-nome').value.trim();
+  if (!nome) { vozStatus('Não entendi o produto. Fale o produto e o preço.'); return; }
+  if (preco === null) {
+    renderUltimos();
+    vozStatus(`Qual o preço de ${nome}? Diga só o valor.`);
+    return;
+  }
+  $('f-preco').value = fmtNum(preco);
+  const qtd = $('f-qtd').value;
+  const antes = db.atual.length;
+  $('form-item').requestSubmit();
+  if (db.atual.length > antes) {
+    vozUltimoItem = db.atual[db.atual.length - 1].id;
+    vozStatus(`Adicionado: ${qtd !== '1' ? qtd + ' × ' : ''}${nome} — ${brl(preco)}`);
+  } else {
+    vozStatus(`Atualizado: ${nome} — ${brl(preco)}`);
+  }
+}
+
+function vozFrase(texto) {
+  const limpo = norm(texto.replace(/[.!?,]/g, ' '));
+  if (/^(parar?|pare|pronto|terminar|terminei|acabou|acabei|so isso|e so|chega|fim)$/.test(limpo)) { pararVoz(); return; }
+  const desfazer = /^(desfazer|desfaz|apagar? (o )?ultimo|remover? (o )?ultimo|tira(r)? (o )?ultimo|errei)$/.test(limpo);
+  (vozModo === 'compra' ? vozFraseCompra : vozFraseLista)(texto, desfazer);
 }
 
 function vozEscutar() {
@@ -413,7 +522,7 @@ function vozEscutar() {
   };
   voz.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      vozAtiva = false; toast('Permita o uso do microfone para ditar a lista.');
+      vozAtiva = false; toast('Permita o uso do microfone para usar a voz.');
     } else if (e.error === 'network') {
       vozAtiva = false; toast('O reconhecimento de voz precisa de internet.');
     } else if (e.error === 'audio-capture') {
@@ -430,12 +539,14 @@ function vozEscutar() {
   voz.start();
 }
 
-function iniciarVoz() {
+function iniciarVoz(modo) {
   if (!Reconhecedor) { toast('Este navegador não tem reconhecimento de voz. Use o Chrome.'); return; }
+  vozModo = modo;
   vozAtiva = true;
   vozSilencios = 0;
   vozUltimos = [];
-  vozStatus('Pode falar: “dois leites, arroz e pão”. Diga “pronto” para terminar.');
+  vozUltimoItem = null;
+  vozStatus(VOZ[modo].dica);
   vozBotao();
   try { vozEscutar(); } catch { vozAtiva = false; vozBotao(); toast('Não foi possível iniciar o microfone.'); }
 }
@@ -446,9 +557,11 @@ function pararVoz() {
   vozBotao();
   vozStatus('');
 }
-$('btn-voz').addEventListener('click', () => (vozAtiva ? pararVoz() : iniciarVoz()));
+for (const [modo, c] of Object.entries(VOZ)) {
+  $(c.btn).addEventListener('click', () => (vozAtiva && vozModo === modo ? pararVoz() : (pararVoz(), iniciarVoz(modo))));
+  if (!Reconhecedor) $(c.btn).hidden = true;
+}
 document.addEventListener('visibilitychange', () => { if (document.hidden) pararVoz(); });
-if (!Reconhecedor) $('btn-voz').hidden = true;
 
 /* Toque em um item de "Falta pegar": leva para o formulário, só falta o preço */
 $('falta-chips').addEventListener('click', (e) => {
@@ -464,6 +577,153 @@ $('falta-chips').addEventListener('click', (e) => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   $('f-preco').focus();
 });
+
+/* ---------- Preço por kg / litro / unidade ---------- */
+const RE_TAMANHO = /(\d+(?:[.,]\d+)?)\s*(kg|quilos?|kilos?|gramas?|gr|g|litros?|lt|ml|l|unidades?|un|rolos?)\b/;
+function tamanho(nome) {
+  const m = norm(nome).match(RE_TAMANHO);
+  if (!m) return null;
+  let q = parseFloat(m[1].replace(',', '.'));
+  if (!(q > 0)) return null;
+  const u = m[2];
+  let un;
+  if (/^(kg|quilo|kilo)/.test(u)) un = 'kg';
+  else if (/^g/.test(u)) { q /= 1000; un = 'kg'; }
+  else if (u === 'ml') { q /= 1000; un = 'L'; }
+  else if (/^l/.test(u)) un = 'L';
+  else un = 'un';
+  return { q, un, base: norm(nome).replace(RE_TAMANHO, ' ').replace(/\s+/g, ' ').trim() };
+}
+function porUnidade(nome, preco) {
+  const t = tamanho(nome);
+  if (!t || t.q === 1) return null;
+  return { valor: preco / t.q, un: t.un };
+}
+const fmtPorUn = (p) => `${brl(p.valor)}/${p.un}`;
+
+/* Linha no formulário: preço por unidade e comparação com outros tamanhos já comprados */
+function renderPorUnidade() {
+  const box = $('porun');
+  const nome = $('f-nome').value.trim();
+  const preco = num($('f-preco').value);
+  const t = nome ? tamanho(nome) : null;
+  if (!t || !(preco > 0)) { box.hidden = true; return; }
+  const atual = preco / t.q;
+  const linhas = [];
+  if (t.q !== 1) linhas.push(`Sai a <b>${brl(atual)} por ${t.un}</b>`);
+  // outros tamanhos do mesmo produto no histórico (preço mais recente de cada um)
+  const outros = new Map();
+  for (const c of comprasOrdenadas()) {
+    for (const i of c.itens) {
+      const k = norm(i.nome);
+      if (k === norm(nome) || outros.has(k)) continue;
+      const ti = tamanho(i.nome);
+      if (ti && ti.un === t.un && ti.base === t.base && ti.base) outros.set(k, { nome: i.nome, valor: i.preco / ti.q });
+    }
+  }
+  const lista = [...outros.values()].sort((a, b) => a.valor - b.valor).slice(0, 2);
+  lista.forEach((o) => linhas.push(`${esc(o.nome)}: ${brl(o.valor)}/${t.un}`));
+  if (lista.length) {
+    linhas.push(atual <= lista[0].valor + 0.005 ? '<b class="ok">Este tamanho compensa mais</b>' : `<b class="estourou">${esc(lista[0].nome)} compensa mais</b>`);
+  }
+  box.hidden = !linhas.length;
+  box.innerHTML = linhas.join('<br>');
+}
+
+/* ---------- Comparar mercados ---------- */
+/* Preço mais recente do produto em cada mercado */
+function precosPorMercado(nome, codigo) {
+  const alvo = norm(nome);
+  const lojas = new Map();
+  for (const c of comprasOrdenadas()) {
+    if (!c.loja || lojas.has(norm(c.loja))) continue;
+    const it = c.itens.find((i) => norm(i.nome) === alvo || (codigo && i.codigo === codigo));
+    if (it) lojas.set(norm(c.loja), { loja: c.loja, preco: it.preco, data: c.data });
+  }
+  return [...lojas.values()].sort((a, b) => a.preco - b.preco);
+}
+
+function renderMercados() {
+  const nomes = new Map();
+  db.compras.forEach((c) => c.itens.forEach((i) => nomes.set(norm(i.nome), i.nome)));
+  const linhas = [];
+  const vitorias = new Map();
+  for (const nome of nomes.values()) {
+    const p = precosPorMercado(nome);
+    if (p.length < 2) continue;
+    const dif = Math.round((p[p.length - 1].preco - p[0].preco) * 100) / 100;
+    if (dif > 0) vitorias.set(p[0].loja, (vitorias.get(p[0].loja) || 0) + 1);
+    linhas.push({ nome, barato: p[0], caro: p[p.length - 1], dif });
+  }
+  linhas.sort((a, b) => b.dif - a.dif);
+  const melhor = [...vitorias.entries()].sort((a, b) => b[1] - a[1])[0];
+  $('merc-resumo').textContent = !linhas.length
+    ? 'Quando você comprar o mesmo produto em mercados diferentes, a comparação aparece aqui. Informe o mercado ao finalizar a compra.'
+    : melhor ? `${melhor[0]} foi o mais barato em ${melhor[1]} de ${linhas.length} ${linhas.length === 1 ? 'produto comparado' : 'produtos comparados'}.`
+    : 'Os preços foram iguais nos mercados comparados.';
+  $('merc-lista').innerHTML = linhas.slice(0, 8).map((l) => `
+    <li><div><span>${esc(l.nome)}</span><b>${brl(l.barato.preco)}</b></div>
+      <span class="sub">${l.dif > 0 ? `${esc(l.barato.loja)} · ${brl(l.dif)} a menos que ${esc(l.caro.loja)}` : 'Mesmo preço nos mercados'}</span></li>`).join('');
+}
+
+/* ---------- Sugestões para a lista ---------- */
+const DIA = 864e5;
+const diasEntre = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / DIA);
+
+function sugestoes() {
+  const prod = new Map(); // nome normalizado → { nome, datas:Set, qtd (última) }
+  for (const c of [...db.compras].sort((a, b) => (a.data < b.data ? -1 : 1))) {
+    for (const i of c.itens) {
+      const k = norm(i.nome);
+      const p = prod.get(k) || { nome: i.nome, datas: new Set() };
+      p.nome = i.nome; p.qtd = i.qtd; p.datas.add(c.data);
+      prod.set(k, p);
+    }
+  }
+  const fora = new Set([...db.lista.filter((l) => !l.feito).map((l) => norm(l.nome)), ...db.atual.map((i) => norm(i.nome))]);
+  const hoje = hojeISO();
+  const out = [];
+  for (const [k, p] of prod) {
+    if (fora.has(k) || p.datas.size < 2) continue;
+    const datas = [...p.datas].sort();
+    const intervalo = diasEntre(datas[0], datas[datas.length - 1]) / (datas.length - 1);
+    const desde = diasEntre(datas[datas.length - 1], hoje);
+    if (intervalo < 2 || desde < intervalo * 0.8) continue;
+    out.push({ nome: p.nome, qtd: p.qtd, intervalo: Math.round(intervalo), atraso: desde / intervalo });
+  }
+  return out.sort((a, b) => b.atraso - a.atraso).slice(0, 8);
+}
+
+function renderSugestoes() {
+  const s = sugestoes();
+  $('sugestoes').hidden = s.length === 0;
+  $('sug-chips').innerHTML = s.map((x) =>
+    `<button type="button" class="chip" data-nome="${esc(x.nome)}" data-qtd="${x.qtd}">+ ${esc(x.nome)} <small>a cada ${x.intervalo} dias</small></button>`).join('');
+}
+$('sug-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  adicionarNaLista(chip.dataset.nome, parseFloat(chip.dataset.qtd) || 1);
+  salvar(); renderLista(); renderFalta();
+});
+
+/* ---------- Lembrete de backup ---------- */
+function renderAvisoBackup() {
+  const agora = Date.now();
+  const ref = db.ultimoBackup || (db.compras.length ? Math.min(...db.compras.map((c) => c.criado)) : null);
+  const mostrar = !!ref && agora - ref > 30 * DIA && !(db.backupAdiado && agora < db.backupAdiado);
+  $('aviso-backup').hidden = !mostrar;
+  if (mostrar) {
+    $('aviso-backup-txt').textContent = db.ultimoBackup
+      ? `Seu último backup foi há ${Math.floor((agora - db.ultimoBackup) / DIA)} dias.`
+      : 'Você ainda não fez backup das suas compras.';
+  }
+  $('backup-info').textContent = db.ultimoBackup
+    ? `Último backup: ${new Date(db.ultimoBackup).toLocaleDateString('pt-BR')}.`
+    : 'Nenhum backup feito ainda.';
+}
+$('aviso-backup-sim').addEventListener('click', () => exportar());
+$('aviso-backup-nao').addEventListener('click', () => { db.backupAdiado = Date.now() + 7 * DIA; salvar(); renderAvisoBackup(); });
 
 /* ---------- Finalizar ---------- */
 $('btn-finalizar').addEventListener('click', () => {
@@ -488,6 +748,7 @@ $('form-fim').addEventListener('submit', () => {
   salvar();
   limparForm();
   renderAtual();
+  renderAvisoBackup();
   toast('Compra salva no histórico ✔');
 });
 
@@ -524,14 +785,19 @@ $('lista-compras').addEventListener('click', (e) => {
 });
 
 /* Backup */
-$('btn-export').addEventListener('click', () => {
+function exportar() {
+  db.ultimoBackup = Date.now();
+  db.backupAdiado = null;
+  salvar();
+  renderAvisoBackup();
   const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = `minhas-compras-${hojeISO()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
+}
+$('btn-export').addEventListener('click', exportar);
 $('btn-import').addEventListener('click', () => $('file-import').click());
 $('file-import').addEventListener('change', async (e) => {
   const f = e.target.files[0];
@@ -542,10 +808,12 @@ $('file-import').addEventListener('change', async (e) => {
     if (!Array.isArray(novo.compras)) throw new Error('formato');
     if (!confirm(`Substituir os dados deste aparelho pelo backup (${novo.compras.length} compras)?`)) return;
     db = Object.assign(vazio(), novo);
+    db.ultimoBackup = Date.now();
     salvar();
     renderAtual();
     renderLista();
     renderHistorico();
+    renderAvisoBackup();
     toast('Backup importado ✔');
   } catch {
     toast('Arquivo de backup inválido');
@@ -594,6 +862,7 @@ function renderResumo() {
   $('res-top').innerHTML = top.length
     ? top.map((p) => `<li><div><span>${esc(p.nome)}</span><b>${brl(p.valor)}</b></div></li>`).join('')
     : '<p class="muted">Sem compras neste mês.</p>';
+  renderMercados();
 }
 $('sel-mes').addEventListener('change', renderResumo);
 
@@ -721,6 +990,7 @@ $('dlg-scan').addEventListener('close', pararScanner);
 
 /* ---------- Início ---------- */
 renderAtual();
+renderAvisoBackup();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }

@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=6">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -29,6 +29,13 @@
 </header>
 
 <main>
+  <div id="aviso-backup" class="card aviso" hidden>
+    <div><strong>Hora de fazer backup</strong><p id="aviso-backup-txt" class="muted"></p></div>
+    <div class="row">
+      <button type="button" class="btn grow" id="aviso-backup-nao">Depois</button>
+      <button type="button" class="btn primary grow" id="aviso-backup-sim">Exportar agora</button>
+    </div>
+  </div>
   <!-- COMPRA ATUAL -->
   <section id="tab-compra" class="tab active">
     <div class="col-fixa">
@@ -50,10 +57,15 @@
         </label>
       </div>
       <div id="compara" class="compara" role="status" hidden></div>
+      <p id="porun" class="porun" hidden></p>
       <div class="row">
         <button type="submit" class="btn primary grow" id="btn-add">Adicionar</button>
         <button type="button" class="btn" id="btn-cancel-edit" hidden>Cancelar</button>
       </div>
+      <button type="button" class="btn voz" id="btn-voz-compra" aria-pressed="false">
+        <svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg><span id="btn-voz-compra-txt">Falar produto e preço</span>
+      </button>
+      <p id="voz-compra-status" class="voz-status" role="status" aria-live="polite" hidden></p>
     </form>
 
     <div id="falta" class="card" hidden>
@@ -104,6 +116,11 @@
       <p id="voz-status" class="voz-status" role="status" aria-live="polite" hidden></p>
     </form>
     <div class="col-lista">
+    <div id="sugestoes" class="card" hidden>
+      <strong>Sugestões</strong>
+      <p class="muted">Pelo seu histórico, pode estar acabando. Toque para pôr na lista.</p>
+      <div id="sug-chips" class="chips"></div>
+    </div>
     <ul id="lista-planejada" class="lista"></ul>
     <p id="lista-vazia" class="muted center">Lista vazia. Monte em casa e, no mercado, os itens aparecem na aba Compra.</p>
     <button type="button" class="btn largo" id="btn-limpar-lista" hidden>Limpar lista</button>
@@ -117,6 +134,7 @@
     <div class="card backup">
       <strong>Backup</strong>
       <p class="muted">Os dados ficam salvos só neste aparelho. Exporte de vez em quando para não perder.</p>
+      <p id="backup-info" class="muted"></p>
       <div class="row">
         <button class="btn grow" id="btn-export">Exportar</button>
         <button class="btn grow" id="btn-import">Importar</button>
@@ -148,6 +166,11 @@
     <div class="card">
       <strong>Onde mais gastei no mês</strong>
       <ol id="res-top" class="top"></ol>
+    </div>
+    <div class="card">
+      <strong>Comparar mercados</strong>
+      <p id="merc-resumo" class="muted"></p>
+      <ul id="merc-lista" class="merc"></ul>
     </div>
   </section>
 </main>
@@ -204,6 +227,6 @@
 </dialog>
 
 <div id="toast" role="status"></div>
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>
