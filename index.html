@@ -9,7 +9,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -114,6 +114,10 @@
         <svg class="ic" aria-hidden="true"><use href="#i-mic"/></svg><span id="btn-voz-txt">Falar os itens</span>
       </button>
       <p id="voz-status" class="voz-status" role="status" aria-live="polite" hidden></p>
+      <div class="row">
+        <button type="button" class="btn grow" id="btn-enviar-lista">Enviar lista</button>
+        <button type="button" class="btn grow" id="btn-importar-lista">Importar lista</button>
+      </div>
     </form>
     <div class="col-lista">
     <div id="sugestoes" class="card" hidden>
@@ -131,6 +135,11 @@
   <section id="tab-historico" class="tab">
     <ul id="lista-compras" class="lista"></ul>
     <p id="hist-vazio" class="muted center">Nenhuma compra registrada ainda.</p>
+    <div class="card">
+      <strong>Produtos repetidos</strong>
+      <p class="muted">Se o mesmo produto ficou com nomes diferentes, junte-os para unir o histórico de preços.</p>
+      <button type="button" class="btn" id="btn-juntar">Juntar ou renomear produtos</button>
+    </div>
     <div class="card backup">
       <strong>Backup</strong>
       <p class="muted">Os dados ficam salvos só neste aparelho. Exporte de vez em quando para não perder.</p>
@@ -226,7 +235,42 @@
   </form>
 </dialog>
 
+<!-- Importar lista -->
+<dialog id="dlg-importar-lista">
+  <form method="dialog" id="form-importar-lista">
+    <h2>Importar lista</h2>
+    <p class="muted">Cole a lista recebida (por exemplo, do WhatsApp). Um item por linha ou separados por vírgula.</p>
+    <textarea id="imp-texto" rows="6" placeholder="• 2 × Leite&#10;• Arroz 5kg&#10;• Pão"></textarea>
+    <button type="button" class="btn" id="imp-colar">Colar</button>
+    <p id="imp-previa" class="muted" role="status"></p>
+    <div class="row">
+      <button type="button" class="btn grow" id="imp-cancelar">Voltar</button>
+      <button type="submit" class="btn primary grow" id="imp-ok" disabled>Adicionar</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Juntar produtos -->
+<dialog id="dlg-juntar">
+  <form method="dialog" id="form-juntar">
+    <h2>Juntar produtos</h2>
+    <div id="juntar-sug" hidden>
+      <p class="muted">Parecem o mesmo produto:</p>
+      <div id="juntar-sug-chips" class="chips"></div>
+    </div>
+    <input id="juntar-busca" type="search" placeholder="Buscar produto" aria-label="Buscar produto">
+    <div id="juntar-lista" class="opcoes"></div>
+    <label>Nome que vai ficar
+      <input id="juntar-nome" autocomplete="off">
+    </label>
+    <div class="row">
+      <button type="button" class="btn grow" id="juntar-cancelar">Voltar</button>
+      <button type="submit" class="btn primary grow" id="juntar-ok" disabled>Juntar</button>
+    </div>
+  </form>
+</dialog>
+
 <div id="toast" role="status"></div>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>
