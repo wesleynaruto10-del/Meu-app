@@ -107,6 +107,17 @@ function renderUltimos() {
 
 $('f-nome').addEventListener('input', () => { renderUltimos(); });
 
+/* Preço: digita só os números e a vírgula entra sozinha (2490 → 24,90) */
+$('f-preco').addEventListener('input', (e) => {
+  const el = e.target;
+  const digitos = el.value.replace(/\D/g, '').slice(0, 9);
+  const centavos = parseInt(digitos || '0', 10);
+  const apagando = (e.inputType || '').startsWith('delete');
+  if (!digitos || (centavos === 0 && apagando)) { el.value = ''; return; }
+  el.value = (centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  el.setSelectionRange(el.value.length, el.value.length);
+});
+
 function limparForm() {
   editando = null;
   codigoPendente = null;
@@ -157,7 +168,7 @@ $('lista-itens').addEventListener('click', (e) => {
     codigoPendente = it.codigo || null;
     $('f-nome').value = it.nome;
     $('f-qtd').value = fmtQtd(it.qtd).replace(/\./g, '');
-    $('f-preco').value = it.preco.toFixed(2).replace('.', ',');
+    $('f-preco').value = it.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     $('btn-add').textContent = 'Salvar alteração';
     $('btn-cancel-edit').hidden = false;
     renderUltimos();
