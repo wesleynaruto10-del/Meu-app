@@ -313,3 +313,7 @@ dialog { max-height: 92dvh; overflow: auto; }
 .card.aviso p { margin-top: 2px; }
 @media (min-width: 1000px) { #tab-resumo.active { grid-template-columns: repeat(2, 1fr); } .card.aviso { max-width: 520px; } }
 .ultimos .mais-barato b { display: inline; margin: 0; font-size: inherit; font-weight: 700; color: var(--text); }
+
+/* Voz: retorno em duas linhas e destaque quando o microfone está pronto */
+.voz-status { white-space: pre-line; line-height: 1.5; }
+.voz-status.pronta { color: var(--text); font-weight: 600; background: var(--soft); border-radius: 14px; padding: 10px 14px; }
