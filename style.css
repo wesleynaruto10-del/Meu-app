@@ -291,3 +291,10 @@ dialog p { margin: 0; }
   .scan-box { aspect-ratio: auto; height: 48dvh; }
 }
 dialog { max-height: 92dvh; overflow: auto; }
+
+/* Lista por voz */
+.btn.voz { background: var(--soft); color: var(--brand); }
+.btn.voz.ouvindo { background: var(--danger); color: #fff; animation: pulso 1.4s ease-in-out infinite; }
+@keyframes pulso { 50% { box-shadow: 0 0 0 8px rgba(192, 39, 28, .18); } }
+@media (prefers-reduced-motion: reduce) { .btn.voz.ouvindo { animation: none; } }
+.voz-status { margin: 0; font-size: .9rem; color: var(--muted); text-align: center; min-height: 1.4em; }

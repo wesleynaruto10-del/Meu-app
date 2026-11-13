@@ -45,6 +45,7 @@ function toast(msg) {
 document.querySelectorAll('nav button').forEach((b) => b.addEventListener('click', () => {
   document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('active', x === b));
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.id === 'tab-' + b.dataset.tab));
+  if (b.dataset.tab !== 'lista') pararVoz();
   if (b.dataset.tab === 'lista') renderLista();
   if (b.dataset.tab === 'historico') renderHistorico();
   if (b.dataset.tab === 'resumo') renderResumo();
@@ -273,15 +274,21 @@ function renderFalta() {
     `<button type="button" class="chip" data-id="${l.id}">${esc(l.nome)}${l.qtd !== 1 ? ' · ' + fmtQtd(l.qtd) : ''}</button>`).join('');
 }
 
+function adicionarNaLista(nome, qtd) {
+  const igual = db.lista.find((l) => !l.feito && norm(l.nome) === norm(nome));
+  if (igual) { igual.qtd = arred(igual.qtd + qtd); return { item: igual, somou: qtd }; }
+  const item = { id: uid(), nome, qtd, feito: false };
+  db.lista.push(item);
+  return { item, somou: 0 };
+}
+
 $('form-lista').addEventListener('submit', (e) => {
   e.preventDefault();
   const nome = $('l-nome').value.trim().replace(/\s+/g, ' ');
   const qtd = num($('l-qtd').value);
   if (!nome) return;
   if (!(qtd > 0)) { toast('Quantidade inválida'); return; }
-  const igual = db.lista.find((l) => !l.feito && norm(l.nome) === norm(nome));
-  if (igual) igual.qtd = arred(igual.qtd + qtd);
-  else db.lista.push({ id: uid(), nome, qtd, feito: false });
+  adicionarNaLista(nome, qtd);
   salvar();
   $('form-lista').reset();
   $('l-qtd').value = '1';
@@ -310,6 +317,138 @@ $('btn-limpar-lista').addEventListener('click', () => {
   renderLista();
   renderFalta();
 });
+
+/* ---------- Lista por voz ---------- */
+const NUMEROS = {
+  um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
+  onze: 11, doze: 12, quinze: 15, vinte: 20, meia: 0.5, meio: 0.5,
+};
+const UNIDADES = '(?:kg|kilos?|quilos?|g|gramas?|l|litros?|ml|pacotes?|caixas?|latas?|garrafas?|unidades?|sacos?|potes?|bandejas?|duzias?|macos?|pes|cabecas?)';
+
+/* "dois leites, 1 kg de arroz e pão" → [{nome:'Leites', qtd:2}, {nome:'Arroz', qtd:1}, {nome:'Pão', qtd:1}] */
+function interpretarFala(texto) {
+  const partes = texto.toLowerCase()
+    .replace(/[.!?]/g, ' ')
+    .split(/(?<!\d),|,(?!\d)|;|\s+e\s+|\s+mais\s+|\s+depois\s+|\s+tamb[eé]m\s+/);
+  const itens = [];
+  for (let parte of partes) {
+    parte = parte.replace(/\s+/g, ' ').trim()
+      .replace(/^(?:e|adicionar?|adicione|colocar?|coloque|comprar?|anotar?|anote|p[oõ]e|botar?|quero|preciso de|falta)\s+/, '').trim();
+    if (!parte) continue;
+    let qtd = 1;
+    const palavras = parte.split(' ');
+    const primeira = norm(palavras[0]);
+    if (/^\d+(?:[.,]\d+)?$/.test(palavras[0]) && palavras.length > 1) {
+      qtd = parseFloat(palavras[0].replace(',', '.'));
+      palavras.shift();
+    } else if (primeira in NUMEROS && palavras.length > 1) {
+      qtd = NUMEROS[primeira];
+      palavras.shift();
+      if (qtd === 0.5 && /^duzias?$/.test(norm(palavras[0] || ''))) { qtd = 6; }
+    }
+    let resto = palavras.join(' ');
+    // "kg de arroz", "pacotes de macarrão" → fica só o produto
+    const semUnidade = norm(resto).match(new RegExp('^' + UNIDADES + ' (?:de |do |da )'));
+    if (semUnidade) {
+      if (/^duzias?/.test(semUnidade[0]) && qtd !== 6) qtd = qtd * 12;
+      resto = resto.split(' ').slice(semUnidade[0].trim().split(' ').length).join(' ');
+    }
+    resto = resto.replace(/^(?:de|do|da)\s+/, '').trim();
+    if (!resto || !(qtd > 0)) continue;
+    itens.push({ nome: resto.charAt(0).toUpperCase() + resto.slice(1), qtd });
+  }
+  return itens;
+}
+
+const Reconhecedor = window.SpeechRecognition || window.webkitSpeechRecognition;
+let voz = null;        // reconhecimento em andamento
+let vozAtiva = false;  // o usuário quer continuar ditando
+let vozSilencios = 0;
+let vozUltimos = [];   // itens adicionados pela última frase (para "desfazer")
+
+function vozStatus(msg) {
+  $('voz-status').hidden = !msg;
+  $('voz-status').textContent = msg || '';
+}
+function vozBotao() {
+  $('btn-voz').classList.toggle('ouvindo', vozAtiva);
+  $('btn-voz-txt').textContent = vozAtiva ? 'Ouvindo… toque para parar' : 'Falar os itens';
+  $('btn-voz').setAttribute('aria-pressed', vozAtiva);
+}
+
+function vozFrase(texto) {
+  const limpo = norm(texto.replace(/[.!?,]/g, ' '));
+  if (/^(parar?|pare|pronto|terminar|terminei|acabou|acabei|so isso|e so|chega|fim)$/.test(limpo)) { pararVoz(); return; }
+  if (/^(desfazer|desfaz|apagar? (o )?ultimo|remover? (o )?ultimo|tira(r)? (o )?ultimo|errei)$/.test(limpo)) {
+    if (!vozUltimos.length) { vozStatus('Nada para desfazer.'); return; }
+    vozUltimos.forEach(({ item, somou }) => {
+      if (somou) item.qtd = arred(item.qtd - somou);
+      else db.lista = db.lista.filter((l) => l.id !== item.id);
+    });
+    vozUltimos = [];
+    salvar(); renderLista(); renderFalta();
+    vozStatus('Desfeito. Pode continuar falando.');
+    return;
+  }
+  const itens = interpretarFala(texto);
+  if (!itens.length) return;
+  vozUltimos = itens.map((i) => adicionarNaLista(i.nome, i.qtd));
+  salvar(); renderLista(); renderFalta();
+  vozStatus('Adicionado: ' + itens.map((i) => (i.qtd !== 1 ? fmtQtd(i.qtd) + ' ' : '') + i.nome).join(', '));
+}
+
+function vozEscutar() {
+  voz = new Reconhecedor();
+  voz.lang = 'pt-BR';
+  voz.continuous = false;      // uma frase por vez; reinicia sozinho (mais estável no Android)
+  voz.interimResults = true;
+  voz.maxAlternatives = 1;
+  let ouviu = false;
+  voz.onresult = (e) => {
+    const r = e.results[e.results.length - 1];
+    const texto = r[0].transcript.trim();
+    if (!texto) return;
+    ouviu = true;
+    if (r.isFinal) vozFrase(texto); else vozStatus('“' + texto + '”');
+  };
+  voz.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      vozAtiva = false; toast('Permita o uso do microfone para ditar a lista.');
+    } else if (e.error === 'network') {
+      vozAtiva = false; toast('O reconhecimento de voz precisa de internet.');
+    } else if (e.error === 'audio-capture') {
+      vozAtiva = false; toast('Não encontrei um microfone.');
+    }
+  };
+  voz.onend = () => {
+    voz = null;
+    vozSilencios = ouviu ? 0 : vozSilencios + 1;
+    if (vozAtiva && vozSilencios >= 4) { vozAtiva = false; vozStatus('Parei de ouvir por falta de fala.'); }
+    if (vozAtiva) { try { vozEscutar(); } catch { vozAtiva = false; } }
+    vozBotao();
+  };
+  voz.start();
+}
+
+function iniciarVoz() {
+  if (!Reconhecedor) { toast('Este navegador não tem reconhecimento de voz. Use o Chrome.'); return; }
+  vozAtiva = true;
+  vozSilencios = 0;
+  vozUltimos = [];
+  vozStatus('Pode falar: “dois leites, arroz e pão”. Diga “pronto” para terminar.');
+  vozBotao();
+  try { vozEscutar(); } catch { vozAtiva = false; vozBotao(); toast('Não foi possível iniciar o microfone.'); }
+}
+function pararVoz() {
+  if (!vozAtiva && !voz) return;
+  vozAtiva = false;
+  if (voz) { try { voz.stop(); } catch { /* já parado */ } }
+  vozBotao();
+  vozStatus('');
+}
+$('btn-voz').addEventListener('click', () => (vozAtiva ? pararVoz() : iniciarVoz()));
+document.addEventListener('visibilitychange', () => { if (document.hidden) pararVoz(); });
+if (!Reconhecedor) $('btn-voz').hidden = true;
 
 /* Toque em um item de "Falta pegar": leva para o formulário, só falta o preço */
 $('falta-chips').addEventListener('click', (e) => {
