@@ -326,3 +326,17 @@ dialog { max-height: 92dvh; overflow: auto; }
 }
 .porun .selo-un { margin-top: 0; }
 @media (prefers-color-scheme: dark) { .selo-un { background: #4a3408; color: #ffd591; } }
+
+/* Importar lista e juntar produtos */
+textarea {
+  font: inherit; color: var(--text); background: var(--field); border: 1.5px solid transparent; border-radius: 14px;
+  padding: 12px 14px; width: 100%; resize: vertical;
+}
+textarea:focus { outline: none; border-color: var(--brand); background: var(--card); }
+.opcoes { max-height: 34dvh; overflow: auto; border-radius: 14px; background: var(--field); padding: 4px 12px; }
+.opcao { flex-direction: row; align-items: center; gap: 12px; padding: 10px 0; font-size: .95rem; font-weight: 500; color: var(--text); border-top: 1px solid var(--line); }
+.opcao:first-child { border-top: 0; }
+.opcao input { width: 22px; min-height: 22px; height: 22px; flex: none; padding: 0; accent-color: var(--brand); }
+.opcao .sub { white-space: nowrap; }
+#juntar-sug .chips { margin-top: 8px; }
+#juntar-sug .chip { min-height: 36px; font-size: .82rem; text-align: left; border-radius: 14px; padding: 6px 12px; }

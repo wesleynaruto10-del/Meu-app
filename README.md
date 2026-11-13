@@ -17,6 +17,8 @@ Aplicativo web (PWA) para usar no celular na hora das compras no mercado.
 - Comparação de mercados: mostra onde o produto saiu mais barato.
 - Sugestões para a lista com base na frequência de compra de cada produto.
 - Lembrete de backup a cada 30 dias.
+- Enviar a lista de compras (WhatsApp ou outro app) e importar uma lista recebida, colando o texto ou abrindo o link.
+- Reconhece o mesmo produto escrito de formas parecidas ("Arroz 5kg" e "Arroz de 5 kg") e permite juntar produtos repetidos.
 - Mantém o histórico de todas as compras finalizadas.
 - Resumo com o total gasto por mês, média por compra e produtos em que mais gastou.
 - Exporta/importa backup em arquivo `.json`.

@@ -2,7 +2,7 @@
 
 /* ---------- Dados ---------- */
 const KEY = 'minhas-compras-v1';
-const vazio = () => ({ atual: [], compras: [], codigos: {}, lista: [], orcamento: null, ultimoBackup: null, backupAdiado: null });
+const vazio = () => ({ atual: [], compras: [], codigos: {}, lista: [], orcamento: null, ultimoBackup: null, backupAdiado: null, apelidos: {} });
 let db = carregar();
 
 function carregar() {
@@ -22,6 +22,10 @@ const brl = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL
 const num = (s) => parseFloat(String(s).trim().replace(/\./g, (m, i, t) => (t.includes(',') ? '' : m)).replace(',', '.'));
 const fmtQtd = (n) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+/* Identidade do produto: ignora acentos, "de/do/da" e o espaço entre número e unidade ("5 kg" = "5kg") */
+const chave = (s) => norm(s).replace(/\b(?:de|do|da|dos|das)\b/g, ' ').replace(/(\d)\s+(kg|g|gr|ml|l|lt|un)\b/g, '$1$2').replace(/\s+/g, ' ').trim();
+/* Nome final de um produto que foi juntado a outro */
+const canon = (nome) => (db.apelidos && db.apelidos[chave(nome)]) || nome;
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const hojeISO = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
@@ -92,7 +96,7 @@ function renderAtual() {
 
 function renderNomes() {
   const nomes = new Map();
-  db.compras.forEach((c) => c.itens.forEach((i) => nomes.set(norm(i.nome), i.nome)));
+  db.compras.forEach((c) => c.itens.forEach((i) => nomes.set(chave(i.nome), i.nome)));
   $('lista-nomes').innerHTML = [...nomes.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'))
     .map((n) => `<option value="${esc(n)}">`).join('');
   const lojas = new Set(db.compras.map((c) => c.loja).filter(Boolean));
@@ -101,11 +105,11 @@ function renderNomes() {
 
 /* Últimas 3 compras do produto (por nome ou código de barras) */
 function ultimosPrecos(nome, codigo) {
-  const alvo = norm(nome);
+  const alvo = chave(canon(nome));
   const achados = [];
   const compras = [...db.compras].sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : b.criado - a.criado));
   for (const c of compras) {
-    const it = c.itens.find((i) => norm(i.nome) === alvo || (codigo && i.codigo === codigo));
+    const it = c.itens.find((i) => chave(i.nome) === alvo || (codigo && i.codigo === codigo));
     if (it) achados.push({ preco: it.preco, data: c.data, loja: c.loja });
     if (achados.length === 3) break;
   }
@@ -171,7 +175,7 @@ function limparForm() {
 
 $('form-item').addEventListener('submit', (e) => {
   e.preventDefault();
-  const nome = $('f-nome').value.trim().replace(/\s+/g, ' ');
+  const nome = canon($('f-nome').value.trim().replace(/\s+/g, ' '));
   const qtd = num($('f-qtd').value);
   const preco = num($('f-preco').value);
   if (!nome) return;
@@ -183,7 +187,7 @@ $('form-item').addEventListener('submit', (e) => {
     if (it) Object.assign(it, { nome, qtd, preco, codigo: codigoPendente || it.codigo });
   } else {
     // se o produto está na lista de compras, marca como pego
-    const daLista = db.lista.find((l) => l.id === listaPendente) || db.lista.find((l) => !l.feito && norm(l.nome) === norm(nome));
+    const daLista = db.lista.find((l) => l.id === listaPendente) || db.lista.find((l) => !l.feito && chave(l.nome) === chave(nome));
     if (daLista) daLista.feito = true;
     db.atual.push({ id: uid(), nome, qtd, preco, codigo: codigoPendente || undefined, listaId: daLista ? daLista.id : undefined });
   }
@@ -284,7 +288,8 @@ function renderFalta() {
 }
 
 function adicionarNaLista(nome, qtd) {
-  const igual = db.lista.find((l) => !l.feito && norm(l.nome) === norm(nome));
+  nome = canon(nome);
+  const igual = db.lista.find((l) => !l.feito && chave(l.nome) === chave(nome));
   if (igual) { igual.qtd = arred(igual.qtd + qtd); return { item: igual, somou: qtd }; }
   const item = { id: uid(), nome, qtd, feito: false };
   db.lista.push(item);
@@ -556,7 +561,7 @@ function vozFraseCompra(textos, desfazer, cancelar) {
   }
   limparForm();
   // reaproveita a grafia de um produto já comprado
-  const conhecido = [...$('lista-nomes').options].find((o) => norm(o.value) === norm(lida.item.nome));
+  const conhecido = [...$('lista-nomes').options].find((o) => chave(o.value) === chave(lida.item.nome));
   $('f-nome').value = conhecido ? conhecido.value : lida.item.nome;
   $('f-qtd').value = fmtQtd(lida.item.qtd).replace(/\./g, '');
   if (lida.preco !== null) { vozAdicionarCompra(lida.preco); return; }
@@ -692,8 +697,8 @@ function renderPorUnidade() {
   const outros = new Map();
   for (const c of comprasOrdenadas()) {
     for (const i of c.itens) {
-      const k = norm(i.nome);
-      if (k === norm(nome) || outros.has(k)) continue;
+      const k = chave(i.nome);
+      if (k === chave(nome) || outros.has(k)) continue;
       const ti = tamanho(i.nome);
       if (ti && ti.un === t.un && ti.base === t.base && ti.base) outros.set(k, { nome: i.nome, valor: i.preco / ti.q });
     }
@@ -710,11 +715,11 @@ function renderPorUnidade() {
 /* ---------- Comparar mercados ---------- */
 /* Preço mais recente do produto em cada mercado */
 function precosPorMercado(nome, codigo) {
-  const alvo = norm(nome);
+  const alvo = chave(canon(nome));
   const lojas = new Map();
   for (const c of comprasOrdenadas()) {
     if (!c.loja || lojas.has(norm(c.loja))) continue;
-    const it = c.itens.find((i) => norm(i.nome) === alvo || (codigo && i.codigo === codigo));
+    const it = c.itens.find((i) => chave(i.nome) === alvo || (codigo && i.codigo === codigo));
     if (it) lojas.set(norm(c.loja), { loja: c.loja, preco: it.preco, data: c.data });
   }
   return [...lojas.values()].sort((a, b) => a.preco - b.preco);
@@ -722,7 +727,7 @@ function precosPorMercado(nome, codigo) {
 
 function renderMercados() {
   const nomes = new Map();
-  db.compras.forEach((c) => c.itens.forEach((i) => nomes.set(norm(i.nome), i.nome)));
+  db.compras.forEach((c) => c.itens.forEach((i) => nomes.set(chave(i.nome), i.nome)));
   const linhas = [];
   const vitorias = new Map();
   for (const nome of nomes.values()) {
@@ -751,13 +756,13 @@ function sugestoes() {
   const prod = new Map(); // nome normalizado → { nome, datas:Set, qtd (última) }
   for (const c of [...db.compras].sort((a, b) => (a.data < b.data ? -1 : 1))) {
     for (const i of c.itens) {
-      const k = norm(i.nome);
+      const k = chave(i.nome);
       const p = prod.get(k) || { nome: i.nome, datas: new Set() };
       p.nome = i.nome; p.qtd = i.qtd; p.datas.add(c.data);
       prod.set(k, p);
     }
   }
-  const fora = new Set([...db.lista.filter((l) => !l.feito).map((l) => norm(l.nome)), ...db.atual.map((i) => norm(i.nome))]);
+  const fora = new Set([...db.lista.filter((l) => !l.feito).map((l) => chave(l.nome)), ...db.atual.map((i) => chave(i.nome))]);
   const hoje = hojeISO();
   const out = [];
   for (const [k, p] of prod) {
@@ -801,6 +806,215 @@ function renderAvisoBackup() {
 }
 $('aviso-backup-sim').addEventListener('click', () => exportar());
 $('aviso-backup-nao').addEventListener('click', () => { db.backupAdiado = Date.now() + 7 * DIA; salvar(); renderAvisoBackup(); });
+
+/* ---------- Enviar e importar a lista ---------- */
+function textoLista() {
+  const pend = db.lista.filter((l) => !l.feito);
+  const linhas = pend.map((l) => `• ${l.qtd !== 1 ? fmtQtd(l.qtd) + ' × ' : ''}${l.nome}`);
+  const link = location.origin + location.pathname + '#lista=' + encodeURIComponent(pend.map((l) => `${l.qtd}x ${l.nome}`).join('\n'));
+  return `🛒 Lista de compras\n${linhas.join('\n')}\n\nAbrir no app Minhas Compras:\n${link}`;
+}
+
+$('btn-enviar-lista').addEventListener('click', async () => {
+  if (!db.lista.some((l) => !l.feito)) { toast('A lista está vazia.'); return; }
+  const text = textoLista();
+  if (navigator.share) {
+    try { await navigator.share({ text }); } catch (e) { if (e.name !== 'AbortError') window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank'); }
+  } else {
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+  }
+});
+
+/* Um item escrito à mão: "2x leite", "Leite x2", "Leite (2)", "Arroz · 12", "2 leites", "leite" */
+function itemDeTexto(p) {
+  const n = '(\\d+(?:[.,]\\d+)?)';
+  const q = (s) => parseFloat(s.replace(',', '.'));
+  let m = p.match(new RegExp('^' + n + '\\s*[x×]\\s+(.+)$', 'i'));
+  if (m && q(m[1]) > 0) return { qtd: q(m[1]), nome: m[2].trim() };
+  m = p.match(new RegExp('^(.+?)(?:\\s+[x×]\\s*|\\s*[·:]\\s*|\\s*\\()' + n + '\\)?$', 'i'));
+  if (m && q(m[2]) > 0) return { qtd: q(m[2]), nome: m[1].trim() };
+  const it = interpretarItem(p);
+  if (!it) return null;
+  // interpretarItem devolve em minúsculas: recupera a grafia original
+  const pos = p.toLowerCase().lastIndexOf(it.nome.toLowerCase());
+  if (pos >= 0) { const orig = p.slice(pos, pos + it.nome.length); it.nome = orig.charAt(0).toUpperCase() + orig.slice(1); }
+  return it;
+}
+
+function linhasParaItens(texto) {
+  const itens = [];
+  for (let linha of texto.split(/\r?\n/)) {
+    linha = linha.trim();
+    if (!linha || /https?:\/\//i.test(linha) || /lista de compras|abrir no app/i.test(linha)) continue;
+    linha = linha.replace(/^(?:[•\-*–—✓✔☐☑▢◦·>]|\[[ xX]?\])\s*/, '').replace(/^\d+[.)]\s+/, '').trim();
+    const partes = /[,;]/.test(linha) ? linha.split(/(?<!\d),|,(?!\d)|;/) : [linha];
+    for (const parte of partes) {
+      const it = parte.trim() ? itemDeTexto(parte.trim()) : null;
+      if (it && it.nome) itens.push(it);
+    }
+  }
+  return itens;
+}
+
+/* Aceita a mensagem enviada pelo app (usa o link, que é exato) ou qualquer lista digitada */
+function lerListaTexto(texto) {
+  const m = texto.match(/#lista=([^\s]+)/);
+  if (m) {
+    try { const itens = linhasParaItens(decodeURIComponent(m[1])); if (itens.length) return itens; } catch { /* link cortado: lê o texto */ }
+  }
+  return linhasParaItens(texto);
+}
+
+function importarItens(itens) {
+  itens.forEach((i) => adicionarNaLista(i.nome, i.qtd));
+  salvar(); renderLista(); renderFalta();
+}
+
+function previaImportar() {
+  const itens = lerListaTexto($('imp-texto').value);
+  $('imp-ok').disabled = itens.length === 0;
+  $('imp-previa').textContent = itens.length
+    ? `${itens.length} ${itens.length === 1 ? 'item reconhecido' : 'itens reconhecidos'}: ` + itens.map((i) => (i.qtd !== 1 ? fmtQtd(i.qtd) + ' × ' : '') + i.nome).join(', ')
+    : ($('imp-texto').value.trim() ? 'Não reconheci nenhum item.' : '');
+}
+$('btn-importar-lista').addEventListener('click', () => { $('imp-texto').value = ''; previaImportar(); $('dlg-importar-lista').showModal(); });
+$('imp-texto').addEventListener('input', previaImportar);
+$('imp-cancelar').addEventListener('click', () => $('dlg-importar-lista').close());
+$('imp-colar').addEventListener('click', async () => {
+  try { $('imp-texto').value = await navigator.clipboard.readText(); previaImportar(); }
+  catch { toast('Não consegui ler a área de transferência. Toque no campo e cole.'); }
+});
+$('form-importar-lista').addEventListener('submit', () => {
+  const itens = lerListaTexto($('imp-texto').value);
+  if (!itens.length) return;
+  importarItens(itens);
+  toast(`${itens.length} ${itens.length === 1 ? 'item adicionado' : 'itens adicionados'} à lista ✔`);
+});
+
+/* Link recebido (…#lista=…): oferece importar ao abrir o app */
+function importarDoLink() {
+  if (!location.hash.startsWith('#lista=')) return;
+  let itens = [];
+  try { itens = linhasParaItens(decodeURIComponent(location.hash.slice(7))); } catch { /* link inválido */ }
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!itens.length) return;
+  document.querySelector('nav button[data-tab=lista]').click();
+  if (confirm(`Importar ${itens.length} ${itens.length === 1 ? 'item' : 'itens'} para a sua lista de compras?`)) {
+    importarItens(itens);
+    toast('Lista importada ✔');
+  }
+}
+window.addEventListener('hashchange', importarDoLink);
+
+/* ---------- Juntar produtos repetidos ---------- */
+function todosProdutos() {
+  const prod = new Map(); // chave → { chave, nome, vezes }
+  const conta = (nome, vez) => {
+    const k = chave(nome);
+    const p = prod.get(k) || { chave: k, nome, vezes: 0 };
+    p.nome = nome; p.vezes += vez;
+    prod.set(k, p);
+  };
+  [...db.compras].sort((a, b) => (a.data < b.data ? -1 : 1)).forEach((c) => c.itens.forEach((i) => conta(i.nome, 1)));
+  db.atual.forEach((i) => conta(i.nome, 0));
+  db.lista.forEach((l) => conta(l.nome, 0));
+  return [...prod.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/* Pares que parecem o mesmo produto: mesma primeira palavra, mesmo tamanho, e um nome contido no outro */
+function paresParecidos(produtos) {
+  const info = produtos.map((p) => {
+    const t = p.chave.split(' ');
+    return { p, t, set: new Set(t), tam: t.filter((w) => /^\d/.test(w)).join(' ') };
+  });
+  const pares = [];
+  for (let i = 0; i < info.length; i++) {
+    for (let j = i + 1; j < info.length; j++) {
+      const a = info[i], b = info[j];
+      if (a.t[0] !== b.t[0] || (a.tam && b.tam && a.tam !== b.tam)) continue;
+      const [menor, maior] = a.set.size <= b.set.size ? [a, b] : [b, a];
+      const comuns = [...menor.set].filter((w) => maior.set.has(w)).length;
+      const contido = comuns === menor.set.size;
+      const jaccard = comuns / (a.set.size + b.set.size - comuns);
+      if (contido || jaccard >= 0.6) pares.push([a.p, b.p]);
+    }
+  }
+  return pares.slice(0, 6);
+}
+
+let juntarSel = new Set();
+let juntarNomeManual = false;
+
+function renderJuntar() {
+  const produtos = todosProdutos();
+  const filtro = norm($('juntar-busca').value);
+  const pares = paresParecidos(produtos);
+  $('juntar-sug').hidden = pares.length === 0;
+  $('juntar-sug-chips').innerHTML = pares.map(([a, b]) =>
+    `<button type="button" class="chip" data-a="${esc(a.chave)}" data-b="${esc(b.chave)}">${esc(a.nome)} + ${esc(b.nome)}</button>`).join('');
+  const visiveis = produtos.filter((p) => !filtro || norm(p.nome).includes(filtro) || juntarSel.has(p.chave));
+  $('juntar-lista').innerHTML = visiveis.map((p) => `
+    <label class="opcao"><input type="checkbox" value="${esc(p.chave)}"${juntarSel.has(p.chave) ? ' checked' : ''}>
+      <span class="grow">${esc(p.nome)}</span><span class="sub">${p.vezes} ${p.vezes === 1 ? 'compra' : 'compras'}</span></label>`).join('')
+    || '<p class="muted center">Nenhum produto encontrado.</p>';
+  if (!juntarNomeManual) {
+    const sel = produtos.filter((p) => juntarSel.has(p.chave)).sort((a, b) => b.vezes - a.vezes);
+    $('juntar-nome').value = sel.length ? sel[0].nome : '';
+  }
+  const n = juntarSel.size;
+  $('juntar-ok').disabled = n === 0 || !$('juntar-nome').value.trim();
+  $('juntar-ok').textContent = n === 1 ? 'Renomear' : n ? `Juntar ${n}` : 'Juntar';
+}
+
+$('btn-juntar').addEventListener('click', () => {
+  juntarSel = new Set(); juntarNomeManual = false;
+  $('juntar-busca').value = ''; $('juntar-nome').value = '';
+  renderJuntar();
+  $('dlg-juntar').showModal();
+});
+$('juntar-busca').addEventListener('input', renderJuntar);
+$('juntar-nome').addEventListener('input', () => { juntarNomeManual = true; $('juntar-ok').disabled = juntarSel.size === 0 || !$('juntar-nome').value.trim(); });
+$('juntar-cancelar').addEventListener('click', () => $('dlg-juntar').close());
+$('juntar-lista').addEventListener('change', (e) => {
+  if (e.target.checked) juntarSel.add(e.target.value); else juntarSel.delete(e.target.value);
+  renderJuntar();
+});
+$('juntar-sug-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  juntarSel = new Set([chip.dataset.a, chip.dataset.b]); juntarNomeManual = false;
+  renderJuntar();
+});
+
+function juntarProdutos(chaves, nomeFinal) {
+  const troca = (o) => { if (chaves.has(chave(o.nome))) o.nome = nomeFinal; };
+  db.compras.forEach((c) => c.itens.forEach(troca));
+  db.atual.forEach(troca);
+  db.lista.forEach(troca);
+  // itens pendentes da lista que viraram o mesmo produto: soma as quantidades
+  const vistos = new Map();
+  db.lista = db.lista.filter((l) => {
+    if (l.feito) return true;
+    const k = chave(l.nome);
+    if (vistos.has(k)) { vistos.get(k).qtd = arred(vistos.get(k).qtd + l.qtd); return false; }
+    vistos.set(k, l); return true;
+  });
+  Object.keys(db.codigos).forEach((cod) => { if (chaves.has(chave(db.codigos[cod]))) db.codigos[cod] = nomeFinal; });
+  // lembra a troca: digitar (ou falar) um nome antigo passa a usar o nome final
+  Object.keys(db.apelidos).forEach((k) => { if (chaves.has(chave(db.apelidos[k]))) db.apelidos[k] = nomeFinal; });
+  chaves.forEach((k) => { if (k !== chave(nomeFinal)) db.apelidos[k] = nomeFinal; });
+  delete db.apelidos[chave(nomeFinal)];
+}
+
+$('form-juntar').addEventListener('submit', () => {
+  const nomeFinal = $('juntar-nome').value.trim().replace(/\s+/g, ' ');
+  if (!juntarSel.size || !nomeFinal) return;
+  const n = juntarSel.size;
+  juntarProdutos(juntarSel, nomeFinal);
+  salvar();
+  renderAtual(); renderLista(); renderHistorico();
+  toast(n > 1 ? `${n} produtos agora são “${nomeFinal}” ✔` : `Renomeado para “${nomeFinal}” ✔`);
+});
 
 /* ---------- Finalizar ---------- */
 $('btn-finalizar').addEventListener('click', () => {
@@ -930,7 +1144,7 @@ function renderResumo() {
   // produtos em que mais gastou no mês
   const prod = new Map();
   compras.forEach((c) => c.itens.forEach((i) => {
-    const k = norm(i.nome);
+    const k = chave(i.nome);
     const p = prod.get(k) || { nome: i.nome, valor: 0 };
     p.valor += i.qtd * i.preco;
     prod.set(k, p);
@@ -1068,6 +1282,7 @@ $('dlg-scan').addEventListener('close', pararScanner);
 /* ---------- Início ---------- */
 renderAtual();
 renderAvisoBackup();
+importarDoLink();
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
