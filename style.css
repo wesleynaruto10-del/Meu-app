@@ -221,3 +221,73 @@ dialog p { margin: 0; }
   box-shadow: 0 12px 32px rgba(0, 0, 0, .25);
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Responsivo ---------- */
+
+/* Celulares estreitos */
+@media (max-width: 359px) {
+  main { padding-inline: 10px; }
+  header { padding-inline: 14px; }
+  .card { padding: 12px; }
+  .lista > li { padding: 12px; }
+  #f-qtd { width: 76px; }
+  .total-bar { left: 8px; right: 8px; padding-left: 14px; }
+  .total-bar strong { font-size: 1.25rem; }
+  .total-bar .btn { padding: 0 12px; font-size: .9rem; }
+  .stats b { font-size: .82rem; }
+  .resumo-total strong { font-size: 1.9rem; }
+  nav button { font-size: .66rem; }
+  nav button .ic { width: 48px; padding: 4px 13px; }
+  .barra { grid-template-columns: 56px 1fr auto; }
+}
+
+/* Tablets e celular deitado */
+@media (min-width: 700px) {
+  main { max-width: 760px; padding-inline: 24px; }
+  header { padding-inline: max(24px, calc((100vw - 760px) / 2 + 24px)); }
+  .total-bar { max-width: 712px; }
+  nav { justify-content: center; }
+  nav button { flex: 0 0 128px; }
+  #lista-compras { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+  #tab-resumo.active { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  #tab-resumo > .card { margin: 0; }
+  #tab-resumo > .card:first-child { grid-column: 1 / -1; }
+}
+
+/* Computador: menu na lateral e duas colunas */
+@media (min-width: 1000px), (min-width: 700px) and (max-height: 520px) {
+  body { padding-left: 96px; padding-bottom: 0; }
+  nav {
+    top: 0; bottom: 0; right: auto; width: 96px; height: auto; padding: 0;
+    flex-direction: column; justify-content: center; gap: 10px;
+    border-top: 0; border-right: 1px solid var(--line);
+  }
+  nav button { flex: 0 0 auto; padding: 10px 0; font-size: .76rem; }
+  main { max-width: 1120px; padding: 8px 32px 32px; }
+  header { padding-inline: max(32px, calc((100vw - 96px - 1120px) / 2 + 32px)); }
+  #tab-compra.active, #tab-lista.active {
+    display: grid; grid-template-columns: minmax(300px, 400px) 1fr; gap: 20px; align-items: start;
+  }
+  #tab-compra { padding-bottom: 104px; }
+  .total-bar { left: 128px; right: 32px; bottom: 20px; max-width: 1056px; }
+  #toast { bottom: 112px; }
+  #lista-compras { grid-template-columns: repeat(3, 1fr); }
+  #tab-resumo.active { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  #tab-resumo > .card:first-child { grid-column: auto; }
+  .backup { max-width: 420px; }
+}
+
+/* Coluna do formulário acompanha a rolagem só quando cabe na tela */
+@media (min-width: 1000px) and (min-height: 760px) {
+  .col-fixa, #form-lista { position: sticky; top: 84px; }
+}
+
+/* Telas baixas (celular deitado): cabeçalho e janelas mais compactos */
+@media (max-height: 520px) {
+  header { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: 8px; }
+  .logo { width: 32px; height: 32px; border-radius: 10px; }
+  h1 { font-size: 1.15rem; }
+  nav button { padding: 4px 0; }
+  .scan-box { aspect-ratio: auto; height: 48dvh; }
+}
+dialog { max-height: 92dvh; overflow: auto; }
