@@ -44,3 +44,11 @@ python3 -m http.server 8000
 ```
 
 Não há etapa de build: são apenas arquivos estáticos (`index.html`, `style.css`, `app.js`).
+
+## Jogo (pasta `jogo/`)
+
+RPG de ação em pixel art, separado do app de compras: abra `jogo/index.html`
+(ou `/jogo/` no endereço do site). Escolha um herói, saia da vila, derrote
+inimigos, sobreviva às ondas, vença o chefe e entre no portal para o próximo reino.
+Os heróis ficam em `jogo/personagens.js` (nome, cores, atributos, golpe e habilidade).
+O progresso é salvo no próprio aparelho.

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#10141f">
+<title>Meu Jogo</title>
+<link rel="stylesheet" href="estilo.css?v=1">
+</head>
+<body>
+<canvas id="tela"></canvas>
+
+<div id="hud" hidden>
+  <div class="barras">
+    <div class="linha"><b id="h-nome"></b><span id="h-ouro"></span></div>
+    <div class="barra vida"><i id="h-vida"></i><span id="h-vida-t"></span></div>
+    <div class="barra xp"><i id="h-xp"></i></div>
+    <div class="linha pequena"><span id="h-reino"></span><span id="h-meta"></span></div>
+  </div>
+  <div class="topo-dir">
+    <button id="b-mochila" title="Mochila (I)">🎒</button>
+    <button id="b-sair" title="Trocar de herói">⏏</button>
+  </div>
+  <div class="botoes">
+    <button id="b-pocao" class="acao peq" title="Poção (Q)">🧪<small id="h-pocoes">0</small></button>
+    <button id="b-esquiva" class="acao peq" title="Esquiva (Shift)">💨</button>
+    <button id="b-hab" class="acao med" title="Habilidade (Espaço)">✨</button>
+    <button id="b-atq" class="acao gra" title="Atacar (clique ou J)">⚔️</button>
+  </div>
+  <div id="aviso"></div>
+</div>
+
+<div id="titulo" class="painel">
+  <h1>Meu Jogo</h1>
+  <p class="sub">Escolha seu herói</p>
+  <div id="herois"></div>
+  <p class="dica">Celular: arraste no lado esquerdo para andar e use os botões.<br>
+  Computador: WASD para andar, mouse para mirar e atacar, Espaço = habilidade, Shift = esquiva, Q = poção, I = mochila.</p>
+</div>
+
+<div id="mochila" class="painel" hidden>
+  <div class="cab"><h2>Mochila</h2><button id="m-fechar">Fechar</button></div>
+  <div id="m-atrib"></div>
+  <h3>Equipado</h3>
+  <div id="m-equip"></div>
+  <div class="cab"><h3>Itens <span id="m-qtd"></span></h3><button id="m-vender">Vender comuns</button></div>
+  <div id="m-itens"></div>
+</div>
+
+<script src="personagens.js?v=1"></script>
+<script src="jogo.js?v=1"></script>
+</body>
+</html>
